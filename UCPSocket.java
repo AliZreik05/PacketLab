@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 public class UCPSocket {
 
-    private static final int BUFFER_SIZE = 1024;
+    private static final int BUFFER_SIZE = 65535;
 
     private final DatagramSocket socket;
     private final InetAddress    channelAddr;
@@ -79,4 +79,8 @@ public class UCPSocket {
 
     public String getMyName()   { return myName; }
     public String getPeerName() { return peerName; }
+
+    public void setTimeout(int timeoutMs) throws SocketException {
+        socket.setSoTimeout(timeoutMs);
+    }
 }

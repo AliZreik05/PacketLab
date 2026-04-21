@@ -2,16 +2,40 @@ import java.util.*;
 import java.io.*;
 import java.net.*;
 
+class RUDP {
+    static final int HEADER_SIZE = 4;
+    static final int ACK_TIMEOUT_MS = 500;
+    static final int EOF_LINGER_MS = 2000;
+
+    static byte[] intToBytes(int value) {
+        return new byte[] {
+            (byte) (value >>> 24),
+            (byte) (value >>> 16),
+            (byte) (value >>> 8),
+            (byte) value
+        };
+    }
+
+    static int bytesToInt(byte[] bytes, int start) {
+        return ((bytes[start] & 0xff) << 24)
+             | ((bytes[start + 1] & 0xff) << 16)
+             | ((bytes[start + 2] & 0xff) << 8)
+             | (bytes[start + 3] & 0xff);
+    }
+}
+
 class RUDPSender {
     static final int CHUNK_SIZE = 1024;
     UCPSocket socket;
     int sequenceNumber = 0;
-    RUDPSender(int port, String serverHostName, int serverPort) {
+    RUDPSender(int port, String serverHostName, int serverPort) throws Exception {
+        socket = new UCPSocket(port, serverHostName, serverPort);
+        socket.setTimeout(RUDP.ACK_TIMEOUT_MS);
     }
     void sendFile(String fileName) throws FileNotFoundException, IOException {
         // Read file and send chunks of size up to 1024
         FileInputStream fis = new FileInputStream(fileName);
-        byte[] buffer = new byte[CHUNK_SIZE + 4];
+        byte[] buffer = new byte[CHUNK_SIZE];
         int bytesRead;
         while ((bytesRead = fis.read(buffer)) != -1) {
             rudp_send(buffer, bytesRead);
@@ -42,8 +66,39 @@ class RUDPSender {
     }
 
     void rudp_send(byte[] bytes, int len) {
-        // TO-DO
-        // if bytes is null and len is 0, this is an EOF 
+        if (len < 0) {
+            throw new IllegalArgumentException("Packet length cannot be negative.");
+        }
+        if (len > 0 && (bytes == null || len > bytes.length)) {
+            throw new IllegalArgumentException("Packet length exceeds payload size.");
+        }
+
+        byte[] packet = new byte[RUDP.HEADER_SIZE + len];
+        byte[] sequenceBytes = RUDP.intToBytes(sequenceNumber);
+        System.arraycopy(sequenceBytes, 0, packet, 0, RUDP.HEADER_SIZE);
+        if (len > 0) {
+            System.arraycopy(bytes, 0, packet, RUDP.HEADER_SIZE, len);
+        }
+
+        while (true) {
+            try {
+                socket.ucp_send(packet, packet.length);
+
+                while (true) {
+                    byte[] ack = socket.ucp_receive();
+                    if (ack != null
+                            && ack.length == RUDP.HEADER_SIZE
+                            && RUDP.bytesToInt(ack, 0) == sequenceNumber) {
+                        sequenceNumber++;
+                        return;
+                    }
+                }
+            } catch (SocketTimeoutException ignored) {
+                // Retry the same packet until the matching ACK arrives.
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to send RUDP packet.", e);
+            }
+        }
     }
 
 }
@@ -52,8 +107,9 @@ class RUDPReceiver {
     static final int INITIAL_SIZE = 1024;
     UCPSocket socket;
     int sequenceNumber = 0;
-    RUDPReceiver(int port, String serverHostName, int serverPort) {
-
+    byte[] bufferedPacket = null;
+    RUDPReceiver(int port, String serverHostName, int serverPort) throws Exception {
+        socket = new UCPSocket(port, serverHostName, serverPort);
     }
     String receiveString() { return new String(receiveBytes()); } 
 
@@ -70,8 +126,86 @@ class RUDPReceiver {
     }
 
     byte[] rudp_receive() {
-        // TO-DO
-        // return 0 when receiving an EOF
+        while (true) {
+            try {
+                byte[] packet = nextPacket();
+                if (packet == null) {
+                    return null;
+                }
+                if (packet.length < RUDP.HEADER_SIZE) {
+                    continue;
+                }
+
+                int receivedSequence = RUDP.bytesToInt(packet, 0);
+                if (receivedSequence == sequenceNumber) {
+                    sendAck(receivedSequence);
+                    sequenceNumber++;
+
+                    if (packet.length == RUDP.HEADER_SIZE) {
+                        lingerAfterEof(receivedSequence);
+                        return null;
+                    }
+                    return Arrays.copyOfRange(packet, RUDP.HEADER_SIZE, packet.length);
+                }
+
+                if (receivedSequence < sequenceNumber) {
+                    sendAck(receivedSequence);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to receive RUDP packet.", e);
+            }
+        }
+    }
+
+    private void sendAck(int ackSequence) throws Exception {
+        byte[] ack = RUDP.intToBytes(ackSequence);
+        socket.ucp_send(ack, ack.length);
+    }
+
+    private byte[] nextPacket() throws Exception {
+        if (bufferedPacket != null) {
+            byte[] packet = bufferedPacket;
+            bufferedPacket = null;
+            return packet;
+        }
+        return socket.ucp_receive();
+    }
+
+    private void lingerAfterEof(int eofSequence) throws Exception {
+        long deadline = System.currentTimeMillis() + RUDP.EOF_LINGER_MS;
+        try {
+            while (true) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    return;
+                }
+
+                socket.setTimeout((int) remaining);
+                byte[] packet = socket.ucp_receive();
+                if (packet == null || packet.length < RUDP.HEADER_SIZE) {
+                    continue;
+                }
+
+                int receivedSequence = RUDP.bytesToInt(packet, 0);
+                if (receivedSequence == eofSequence) {
+                    sendAck(receivedSequence);
+                    deadline = System.currentTimeMillis() + RUDP.EOF_LINGER_MS;
+                    continue;
+                }
+
+                if (receivedSequence < sequenceNumber) {
+                    sendAck(receivedSequence);
+                    continue;
+                }
+
+                bufferedPacket = packet;
+                return;
+            }
+        } catch (SocketTimeoutException ignored) {
+            // No retransmitted EOF arrived during the grace period.
+        } finally {
+            socket.setTimeout(0);
+        }
     }
 
     private byte[] doubleSize(byte[] b) { return Arrays.copyOf(b, b.length * 2); }
