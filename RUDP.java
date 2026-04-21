@@ -18,7 +18,7 @@ class RUDPSender {
         }
 
         // Indicate EOF
-        rudp_send(buffer, 0t);
+        rudp_send(buffer, 0);
 
         // Send file name to server
         sendString(fileName);
