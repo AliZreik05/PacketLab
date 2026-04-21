@@ -17,7 +17,7 @@ public class RUDPSource {
             int clientPort = (receiverHostName.equals("localhost") || receiverHostName.equals("127.0.0.1")) && receiverPort == 8000 ? 8001 : 8000; // Making sure to avoid using server's port
             RUDPSender sender = new RUDPSender(clientPort, "localhost", 6789);
 
-            sender.sendFile(fileName, receiverHostName, receiverPort);
+            sender.sendFile(fileName);
         }
         catch(Exception e) {
             System.err.println("Usage: java RUDPSource -r <recvHost>:<recvPort> -f <fileName>");

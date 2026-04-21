@@ -8,40 +8,40 @@ class RUDPSender {
     int sequenceNumber = 0;
     RUDPSender(int port, String serverHostName, int serverPort) {
     }
-    void sendFile(String fileName, String receiverHostName, int receiverPort) throws FileNotFoundException, IOException {
+    void sendFile(String fileName) throws FileNotFoundException, IOException {
         // Read file and send chunks of size up to 1024
         FileInputStream fis = new FileInputStream(fileName);
         byte[] buffer = new byte[CHUNK_SIZE + 4];
         int bytesRead;
         while ((bytesRead = fis.read(buffer)) != -1) {
-            rudp_send(buffer, bytesRead, receiverHostName, receiverPort);
+            rudp_send(buffer, bytesRead);
         }
 
         // Indicate EOF
-        rudp_send(buffer, 0, receiverHostName, receiverPort);
+        rudp_send(buffer, 0t);
 
         // Send file name to server
-        sendString(fileName, receiverHostName, receiverPort);
+        sendString(fileName);
 
         // Close streams and sockets
         fis.close();
     }
     
-    void sendString(String s, String receiverHostName, int receiverPort) { sendBytes(s.getBytes(), receiverHostName, receiverPort); } 
+    void sendString(String s) { sendBytes(s.getBytes()); } 
 
-    void sendBytes(byte[] b, String receiverHostName, int receiverPort) {
+    void sendBytes(byte[] b) {
         // Send bytes in chunks of size at most 1024
         for (int i = 0; i < b.length; i += CHUNK_SIZE) {
             int end = Math.min(b.length, i + CHUNK_SIZE);
             byte[] chunk = Arrays.copyOfRange(b, i, end);
-            rudp_send(chunk, chunk.length, receiverHostName, receiverPort);
+            rudp_send(chunk, chunk.length);
         }
 
         // Indicate EOF
-        rudp_send(null, 0, receiverHostName, receiverPort);
+        rudp_send(null, 0);
     }
 
-    void rudp_send(byte[] bytes, int len, String receiverHostName, int receiverPort) {
+    void rudp_send(byte[] bytes, int len) {
         // TO-DO
         // if bytes is null and len is 0, this is an EOF 
     }
@@ -53,7 +53,7 @@ class RUDPReceiver {
     UCPSocket socket;
     int sequenceNumber = 0;
     RUDPReceiver(int port, String serverHostName, int serverPort) {
-        
+
     }
     String receiveString() { return new String(receiveBytes()); } 
 
