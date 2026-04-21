@@ -4,10 +4,9 @@ import java.net.*;
 
 class RUDPSender {
     static final int CHUNK_SIZE = 1024;
-    UCPClient socket;
+    UCPSocket socket;
     int sequenceNumber = 0;
     RUDPSender(int port, String serverHostName, int serverPort) {
-        socket = new UCPClient(port, serverHostName, serverPort);
     }
     void sendFile(String fileName, String receiverHostName, int receiverPort) throws FileNotFoundException, IOException {
         // Read file and send chunks of size up to 1024
@@ -51,10 +50,10 @@ class RUDPSender {
 
 class RUDPReceiver {
     static final int INITIAL_SIZE = 1024;
-    UCPClient socket;
+    UCPSocket socket;
     int sequenceNumber = 0;
     RUDPReceiver(int port, String serverHostName, int serverPort) {
-        socket = new UCPClient(port, serverHostName, serverPort);
+        
     }
     String receiveString() { return new String(receiveBytes()); } 
 
