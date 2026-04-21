@@ -44,7 +44,7 @@ class RUDPSender {
 
     void rudp_send(byte[] bytes, int len, String receiverHostName, int receiverPort) {
         // TO-DO
-        // if len is 0, this is an EOF 
+        // if bytes is null and len is 0, this is an EOF 
     }
 
 }
