@@ -15,6 +15,9 @@ public class RUDPDestination {
             FileOutputStream fos = new FileOutputStream(fileName);
             fos.write(b);
             fos.flush();
+            fos.close();
+
+            System.out.println("[COMPLETE]");
         }
         catch(Exception e) {
             System.err.println("Usage: java RUDPDestination -p <recvPort>");

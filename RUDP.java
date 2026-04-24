@@ -44,7 +44,15 @@ class RUDPSender {
         // Indicate EOF
         rudp_send(buffer, 0);
 
-        // Send file name to server
+        // Send file name to server (after appending -copy)
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex != -1) {
+            fileName = fileName.substring(0, dotIndex)
+                            + "-copy"
+                            + fileName.substring(dotIndex);
+        } else {
+            fileName += "-copy";
+        }
         sendString(fileName);
 
         // Close streams and sockets
@@ -83,7 +91,7 @@ class RUDPSender {
         while (true) {
             try {
                 socket.ucp_send(packet, packet.length);
-
+                System.out.println("[DATA TRANSMISSION]: " + sequenceNumber + " | " + packet.length);
                 while (true) {
                     byte[] ack = socket.ucp_receive();
                     if (ack != null
@@ -137,6 +145,7 @@ class RUDPReceiver {
                 }
 
                 int receivedSequence = RUDP.bytesToInt(packet, 0);
+                System.out.println("[DATA RECEPTION]: " + sequenceNumber + " | " + packet.length + " | " + (receivedSequence == sequenceNumber ? "OK" : "DISCARDED"));
                 if (receivedSequence == sequenceNumber) {
                     sendAck(receivedSequence);
                     sequenceNumber++;

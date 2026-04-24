@@ -18,6 +18,7 @@ public class RUDPSource {
             RUDPSender sender = new RUDPSender(clientPort, "localhost", 6789);
 
             sender.sendFile(fileName);
+            System.out.println("[COMPLETE]");
         }
         catch(Exception e) {
             System.err.println("Usage: java RUDPSource -r <recvHost>:<recvPort> -f <fileName>");
