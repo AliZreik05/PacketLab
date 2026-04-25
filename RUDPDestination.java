@@ -21,7 +21,7 @@ public class RUDPDestination {
         }
         catch(Exception e) {
             System.err.println("Usage: java RUDPDestination -p <recvPort>");
-            System.err.println("\n Error:");
+            System.err.println("\nError:");
             System.err.println(e);
         }
     }

@@ -47,10 +47,9 @@ class RUDPSender {
         // Send file name to server (after appending -copy)
         int dotIndex = fileName.lastIndexOf('.');
         if (dotIndex != -1) {
-            fileName = fileName.substring(0, dotIndex)
-                            + "-copy"
-                            + fileName.substring(dotIndex);
-        } else {
+            fileName = fileName.substring(0, dotIndex) + "-copy" + fileName.substring(dotIndex);
+        } 
+        else {
             fileName += "-copy";
         }
         sendString(fileName);
@@ -73,7 +72,7 @@ class RUDPSender {
         rudp_send(null, 0);
     }
 
-    void rudp_send(byte[] bytes, int len) {
+    private void rudp_send(byte[] bytes, int len) {
         if (len < 0) {
             throw new IllegalArgumentException("Packet length cannot be negative.");
         }
@@ -94,16 +93,16 @@ class RUDPSender {
                 System.out.println("[DATA TRANSMISSION]: " + sequenceNumber + " | " + packet.length);
                 while (true) {
                     byte[] ack = socket.ucp_receive();
-                    if (ack != null
-                            && ack.length == RUDP.HEADER_SIZE
-                            && RUDP.bytesToInt(ack, 0) == sequenceNumber) {
+                    if (ack != null && ack.length == RUDP.HEADER_SIZE && RUDP.bytesToInt(ack, 0) == sequenceNumber) {
                         sequenceNumber++;
                         return;
                     }
                 }
-            } catch (SocketTimeoutException ignored) {
+            } 
+            catch (SocketTimeoutException ignored) {
                 // Retry the same packet until the matching ACK arrives.
-            } catch (Exception e) {
+            } 
+            catch (Exception e) {
                 throw new RuntimeException("Failed to send RUDP packet.", e);
             }
         }
@@ -122,6 +121,7 @@ class RUDPReceiver {
     String receiveString() { return new String(receiveBytes()); } 
 
     byte[] receiveBytes() {
+        // Keep receiving chunks until an EOF is received
         byte[] buffer = new byte[INITIAL_SIZE];
         int len = 0;
         byte[] chunk;
@@ -133,7 +133,7 @@ class RUDPReceiver {
         return Arrays.copyOf(buffer, len);
     }
 
-    byte[] rudp_receive() {
+    private byte[] rudp_receive() {
         while (true) {
             try {
                 byte[] packet = nextPacket();
@@ -160,7 +160,8 @@ class RUDPReceiver {
                 if (receivedSequence < sequenceNumber) {
                     sendAck(receivedSequence);
                 }
-            } catch (Exception e) {
+            } 
+            catch (Exception e) {
                 throw new RuntimeException("Failed to receive RUDP packet.", e);
             }
         }
@@ -210,9 +211,11 @@ class RUDPReceiver {
                 bufferedPacket = packet;
                 return;
             }
-        } catch (SocketTimeoutException ignored) {
+        } 
+        catch (SocketTimeoutException ignored) {
             // No retransmitted EOF arrived during the grace period.
-        } finally {
+        } 
+        finally {
             socket.setTimeout(0);
         }
     }

@@ -48,7 +48,7 @@ public class UCPSocket {
     /** Send {@code len} bytes from {@code b} to the peer. */
     public void ucp_send(byte[] b, int len) throws Exception {
         String msg = new String(b, 0, len, StandardCharsets.ISO_8859_1);
-        sendRaw(UCPPacket.data(myName, peerName, 0, msg).toBytes());
+        sendRaw(new UCPPacket(myName, peerName, 0, msg, false).toBytes());
     }
 
     /** Block until a data packet arrives. Returns null on END. */
