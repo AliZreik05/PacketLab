@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets;
 
 public class UCPClient {
 
-    private static final int TOTAL = 1000;
-    private static final int INTERVAL_MS = 500;
+    private static final int TOTAL = 1000;          //total number of packets to send
+    private static final int INTERVAL_MS = 500;         //delay between sends in ms
 
     public static void main(String[] args) throws Exception {
 
@@ -21,8 +21,8 @@ public class UCPClient {
             String peer = socket.getPeerName();
             System.out.printf("[%s] Session started. Peer is %s.%n", me, peer);
 
-            // Receiver thread
-            int[] received = {0};
+            // Receiver thread so we can send and receive at the same time
+            int[] received = {0};       
             Thread receiver = new Thread(() -> {
                 try {
                     byte[] data;
@@ -35,10 +35,10 @@ public class UCPClient {
                     System.err.println(me + " receiver error: " + e.getMessage());
                 }
             }, me + "-receiver");
-            receiver.setDaemon(true);
+            receiver.setDaemon(true);           //dies automatically when main thread exits
             receiver.start();
 
-            // Sender loop
+            // Sender loop, sends 1000 packets, one every 500ms
             for (int i = 1; i <= TOTAL; i++) {
                 byte[] data = ("Packet #" + i + " from " + me).getBytes(StandardCharsets.ISO_8859_1);
                 socket.ucp_send(data, data.length);
@@ -47,7 +47,7 @@ public class UCPClient {
             }
 
             socket.close();
-            Thread.sleep(3000); 
+            Thread.sleep(3000);         //give the thread time to drain any remaining packets
 
             System.out.printf("%n[%s] Done. Total packets received from %s: %d%n", me, peer, received[0]);
         }

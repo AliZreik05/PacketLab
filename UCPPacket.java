@@ -2,11 +2,11 @@
 
 import java.nio.charset.StandardCharsets;
 
-public class UCPPacket {
+public class UCPPacket {    // Wire format for packets exchanged through the UnreliableChannel.
 
     String src, dest, message;
     int seq;
-    boolean isEnd;
+    boolean isEnd;      // true for END control packets, false for data packets
 
     UCPPacket(String src, String dest, int seq, String message, boolean isEnd) {
         this.src = src; 
@@ -16,11 +16,11 @@ public class UCPPacket {
         this.isEnd = isEnd;
     }
 
-    static UCPPacket end(String src, String dest) {
+    static UCPPacket end(String src, String dest) {     //builds END packet which signals the session is over
         return new UCPPacket(src, dest, -1, "END", true);
     }
 
-    static UCPPacket fromBytes(byte[] data, int length) {
+    static UCPPacket fromBytes(byte[] data, int length) {       //parses raw data into a UCPPacket, splits on "|" with a limit of 5
         String[] p = new String(data, 0, length, StandardCharsets.UTF_8).split("\\|", 5);
         if (p.length < 5) throw new IllegalArgumentException("Malformed packet");
         String src = p[0];
@@ -31,7 +31,7 @@ public class UCPPacket {
         return new UCPPacket(src, dest, seq, message, isEnd);
     }
 
-    byte[] toBytes() {
+    byte[] toBytes() {      //serializes the packet to bytes so we can send it over the socket
         return (src + "|" + dest + "|" + seq + "|" + isEnd + "|" + message).getBytes(StandardCharsets.UTF_8);
     }
 

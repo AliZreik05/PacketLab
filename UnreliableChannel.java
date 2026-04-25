@@ -2,6 +2,9 @@
 // Simulates an unreliable UDP channel between exactly two clients.
 // First client to send HELLO becomes "A", second becomes "B".
 // Usage: java UnreliableChannel <listenPort> <p> <minD> <maxD>
+//   p    = drop probability (0.0 to 1.0)
+//   minD = minimum forwarding delay in ms
+//   maxD = maximum forwarding delay in ms
 
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -10,16 +13,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class UnreliableChannel {
 
-    /** Per-direction counters. */
-    private static class Stats {
+    
+    private static class Stats {            // Tracks per-direction stats (A->B and B->A separately)
         int recv, lost, delayed;
         double totalDelay;
     }
 
-    private static final Map<String, InetSocketAddress> users  = new LinkedHashMap<>();
+    private static final Map<String, InetSocketAddress> users  = new LinkedHashMap<>();     //"A"/"B" -> their address
     private static final Map<String, Stats>             stats  = new HashMap<>();
-    private static final Set<String>                    ended  = new HashSet<>();
-    private static final AtomicInteger                  active = new AtomicInteger(0);
+    private static final Set<String>                    ended  = new HashSet<>();       //tracks which clients have sent END packet
+    private static final AtomicInteger                  active = new AtomicInteger(0);      //number of in-flight threads
 
     public static void main(String[] args) throws Exception {
 
@@ -49,7 +52,7 @@ public class UnreliableChannel {
         DatagramSocket socket = new DatagramSocket(port);
         byte[]         buffer = new byte[65535];
 
-        // ── Phase 1: HELLO handshake ──
+        //Phase 1: HELLO handshake, waits until both clients have registered before starting the delay
         while (users.size() < 2) {
             DatagramPacket dp = new DatagramPacket(buffer, buffer.length);
             socket.receive(dp);
@@ -58,18 +61,18 @@ public class UnreliableChannel {
                                     StandardCharsets.UTF_8).trim();
             InetSocketAddress sender = new InetSocketAddress(dp.getAddress(), dp.getPort());
 
-            if (!"HELLO".equals(msg) || users.containsValue(sender)) continue;
+            if (!"HELLO".equals(msg) || users.containsValue(sender)) continue;       // Ignore anything that isn't a HELLO, or duplicate HELLOs from the same client
 
             String name = users.isEmpty() ? "A" : "B";
             users.put(name, sender);
             System.out.printf("[CHANNEL] %s connected — assigned name \"%s\"%n", sender, name);
         }
 
-        sendAssign(socket, "A", "B");
+        sendAssign(socket, "A", "B");               // Tell each client their own name and their peer's name
         sendAssign(socket, "B", "A");
         System.out.println("[CHANNEL] Both clients connected. Session started.");
 
-        // ── Phase 2: relay loop ──
+        //Phase 2: relay loop, Keep going until both clients have sent END
         while (ended.size() < 2) {
             DatagramPacket dp = new DatagramPacket(buffer, buffer.length);
             socket.receive(dp);
@@ -85,7 +88,7 @@ public class UnreliableChannel {
             String src = pkt.src.toUpperCase();
             Stats  s   = stats.get(src);
 
-            if (pkt.isEnd) {
+            if (pkt.isEnd) {    // Mark this client as done, but still subject it to the channel unreliability below
                 System.out.printf("[CHANNEL] END from %s — subjecting to channel unreliability%n", src);
                 ended.add(src);
             } else {
@@ -101,7 +104,7 @@ public class UnreliableChannel {
                 continue;
             }
 
-            int delay = minD + rnd.nextInt(maxD - minD + 1);
+            int delay = minD + rnd.nextInt(maxD - minD + 1);        //forward the packet after a random delay in [mindD,maxD]
             if (!pkt.isEnd) {
                 System.out.printf("[CHANNEL] FORWARDING from %s with delay=%d ms%n", src, delay);
                 if (s != null) { s.delayed++; s.totalDelay += delay; }
@@ -109,7 +112,7 @@ public class UnreliableChannel {
             scheduleRelay(socket, pkt, delay);
         }
 
-        System.out.println("[CHANNEL] Both ENDs received. Draining in-flight packets...");
+        System.out.println("[CHANNEL] Both ENDs received. Draining in-flight packets...");          // Wait for all in-flight relay threads to finish before printing stats and closing
         while (active.get() > 0) Thread.sleep(50);
         System.out.println("[CHANNEL] All relay threads finished.");
 
@@ -117,14 +120,14 @@ public class UnreliableChannel {
         socket.close();
     }
 
-    private static void sendAssign(DatagramSocket socket, String name, String peer) throws Exception {
+    private static void sendAssign(DatagramSocket socket, String name, String peer) throws Exception {      //sends and ASSIGN packet telling name it own name and it's peers name
         InetSocketAddress addr = users.get(name);
         byte[] data = ("ASSIGN|" + name + "|" + peer).getBytes(StandardCharsets.UTF_8);
         socket.send(new DatagramPacket(data, data.length, addr.getAddress(), addr.getPort()));
         System.out.printf("[CHANNEL] Sent ASSIGN to %s @ %s (peer=%s)%n", name, addr, peer);
     }
 
-    private static void scheduleRelay(DatagramSocket socket, UCPPacket pkt, int delayMs) {
+    private static void scheduleRelay(DatagramSocket socket, UCPPacket pkt, int delayMs) {      //sends a packet to its destination after a delay in a separate thread. Using separate threads means multiple delayed packets can be in flight at the same time
         active.incrementAndGet();
         Thread t = new Thread(() -> {
             try {
@@ -142,7 +145,7 @@ public class UnreliableChannel {
             } catch (Exception e) {
                 System.err.println("Relay error: " + e.getMessage());
             } finally {
-                active.decrementAndGet();
+                active.decrementAndGet();       //signals that this relay thread is done
             }
         });
         t.setDaemon(false);

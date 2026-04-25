@@ -6,13 +6,13 @@ import java.nio.charset.StandardCharsets;
 
 public class UCPSocket {
 
-    private static final int BUFFER_SIZE = 65535;
+    private static final int BUFFER_SIZE = 65535;       //max UDP datagram size
 
     private final DatagramSocket socket;
-    private final InetAddress    channelAddr;
-    private final int            channelPort;
+    private final InetAddress    channelAddr;       //server's address
+    private final int            channelPort;       //server's por
 
-    public final String myName, peerName;
+    public final String myName, peerName;       //assigned by channel ("A" OR "B")
 
     /**
      * Binds to {@code localPort}, sends HELLO to the channel, and blocks
@@ -23,15 +23,15 @@ public class UCPSocket {
         this.channelAddr = InetAddress.getByName(serverHostName);
         this.channelPort = serverPort;
 
-        // ── HELLO handshake ──
+        //HELLO handshake, needs two clients before session can start
         sendRaw("HELLO".getBytes(StandardCharsets.UTF_8));
         System.out.println("[UCPSocket] HELLO sent — waiting for name assignment...");
 
-        byte[] buf = new byte[BUFFER_SIZE];
+        byte[] buf = new byte[BUFFER_SIZE]; //block until channel assigns us a name and tells us our peers name
         DatagramPacket dp = new DatagramPacket(buf, buf.length);
         socket.receive(dp);
 
-        String[] parts = new String(dp.getData(), 0, dp.getLength(),
+        String[] parts = new String(dp.getData(), 0, dp.getLength(),        //reply format: "ASSIGN|<myname>|<peername>"
                                     StandardCharsets.UTF_8).split("\\|");
         if (parts.length != 3 || !"ASSIGN".equals(parts[0]))
             throw new Exception("Unexpected handshake reply");
@@ -41,13 +41,12 @@ public class UCPSocket {
         System.out.printf("[UCPSocket] Assigned name=%s  peer=%s%n", myName, peerName);
     }
 
-    private void sendRaw(byte[] data) throws Exception {
+    private void sendRaw(byte[] data) throws Exception {        //sends raw bytes directly to the channel
         socket.send(new DatagramPacket(data, data.length, channelAddr, channelPort));
     }
 
-    /** Send {@code len} bytes from {@code b} to the peer. */
-    public void ucp_send(byte[] b, int len) throws Exception {
-        String msg = new String(b, 0, len, StandardCharsets.ISO_8859_1);
+    public void ucp_send(byte[] b, int len) throws Exception {      //wraps given bytes in a UCPPacket and sends it to peer
+        String msg = new String(b, 0, len, StandardCharsets.ISO_8859_1);        //ISO-8859-1 is used so arbitrary binary bytes survive the string round-trip
         sendRaw(new UCPPacket(myName, peerName, 0, msg, false).toBytes());
     }
 
@@ -80,7 +79,7 @@ public class UCPSocket {
     public String getMyName()   { return myName; }
     public String getPeerName() { return peerName; }
 
-    public void setTimeout(int timeoutMs) throws SocketException {
+    public void setTimeout(int timeoutMs) throws SocketException {      //sets a receive timeour in ms, 0 means block indefinitely. Used by RUDPSender to implement ack timeouts
         socket.setSoTimeout(timeoutMs);
     }
 }
