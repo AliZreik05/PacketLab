@@ -67,7 +67,7 @@ public final class LabSmokeTest {
                             ProtocolEvent event=ordered.get(i);
                             if(event.sequence()==0 && event.kind().equals(kind) && event.action().equals(action)) {found=i;break;}
                         }
-                        if(found<=previous) throw new AssertionError("Noncausal event order: "+kind+" "+action);
+                        if(found<=previous) { ordered.stream().filter(e->e.sequence()==0).forEach(System.err::println); throw new AssertionError("Noncausal event order: "+kind+" "+action); }
                         previous=found;
                     }
                 }

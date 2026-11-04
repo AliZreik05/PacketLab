@@ -58,7 +58,7 @@ public class UCPSocket implements AutoCloseable {
 
     public void ucp_send(byte[] b, int len) throws Exception {      //wraps given bytes in a UCPPacket and sends it to peer
         String msg = new String(b, 0, len, StandardCharsets.ISO_8859_1);        //ISO-8859-1 is used so arbitrary binary bytes survive the string round-trip
-        sendRaw(new UCPPacket(myName, peerName, 0, msg, false).toBytes());
+        sendRaw(new UCPPacket(myName, peerName, ProtocolEvent.currentStamp(), msg, false).toBytes());
     }
 
     /** Block until a data packet arrives. Returns null on END. */
@@ -69,6 +69,7 @@ public class UCPSocket implements AutoCloseable {
             socket.receive(dp);
             try {
                 UCPPacket pkt = UCPPacket.fromBytes(dp.getData(), dp.getLength());
+                ProtocolEvent.observe(pkt.seq);
                 if (pkt.isEnd) {
                     System.out.println("[UCPSocket] END received from peer.");
                     return null;

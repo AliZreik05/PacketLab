@@ -42,6 +42,9 @@ public class UnreliableChannel {
             System.exit(1);
         }
 
+        Experiment experiment=args.length>4 ? Experiment.valueOf(args[4]) : Experiment.RANDOM;
+        boolean scenarioDropUsed=false;
+        if(!experiment.custom()) { p=0;minD=10;maxD=80; }
         stats.put("A", new Stats());
         stats.put("B", new Stats());
 
@@ -84,6 +87,7 @@ public class UnreliableChannel {
             UCPPacket pkt;
             try {
                 pkt = UCPPacket.fromBytes(dp.getData(), dp.getLength());
+                ProtocolEvent.observe(pkt.seq);
             } catch (Exception e) {
                 System.err.println("[CHANNEL] Malformed packet — discarding");
                 continue;
@@ -102,9 +106,11 @@ public class UnreliableChannel {
 
             // Loss decision (END is also subject to loss)
             double d = rnd.nextDouble();
-            if (d <= p) {
+            boolean forced=!scenarioDropUsed && !pkt.isEnd && experiment.drops(packetKind(pkt));
+            if(forced) { scenarioDropUsed=true; System.out.println("[SCENARIO] Deliberately dropping the first " + packetKind(pkt)); }
+            if (forced || d < p) {
                 trace("DROP", pkt, 0);
-                System.out.printf("[CHANNEL] DROPPED from %s (d=%.3f <= p=%.3f)%n", src, d, p);
+                System.out.printf("[CHANNEL] DROPPED from %s (%s)%n", src, forced ? "scenario" : "random loss");
                 if (s != null && !pkt.isEnd) s.lost++;
                 continue;
             }
@@ -144,8 +150,9 @@ public class UnreliableChannel {
                             pkt.dest, pkt);
                     return;
                 }
-                byte[] data = pkt.toBytes();
                 trace("FORWARD", pkt, delayMs);
+                pkt.seq=ProtocolEvent.currentStamp();
+                byte[] data = pkt.toBytes();
                 socket.send(new DatagramPacket(data, data.length,
                         addr.getAddress(), addr.getPort()));
                 System.out.printf("[CHANNEL] Forwarded to %s | %s%n", pkt.dest, pkt);
@@ -174,11 +181,15 @@ public class UnreliableChannel {
         System.out.println("=========================================");
     }
 
+    private static String packetKind(UCPPacket packet) {
+        if(packet.isEnd) return "END";
+        return "receiver".equals(roles.get(packet.src)) ? "ACK" : packet.message.length()==4 ? "EOF" : "DATA";
+    }
     private static void trace(String action, UCPPacket packet, int delay) {
         if (packet.isEnd || !roles.containsKey(packet.src)) return;
         byte[] data = packet.message.getBytes(StandardCharsets.ISO_8859_1);
         if (data.length < RUDP.HEADER_SIZE) return;
-        String kind = roles.get(packet.src).equals("receiver") ? "ACK" : data.length == 4 ? "EOF" : "DATA";
+        String kind = packetKind(packet);
         ProtocolEvent.emit(action, RUDP.bytesToInt(data, 0), kind, delay);
     }
 }

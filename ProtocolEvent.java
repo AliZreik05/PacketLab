@@ -9,13 +9,16 @@ public record ProtocolEvent(String action, int sequence, String kind, int delay,
         long clock = now.getEpochSecond()*1_000_000_000L + now.getNano();
         return lastTimestamp = Math.max(clock,lastTimestamp+1);
     }
+    // Carry the last observed stamp over the relay so causal order survives clock skew.
+    public static synchronized void observe(long stamp) { lastTimestamp=Math.max(lastTimestamp,stamp); }
+    public static synchronized long currentStamp() { return lastTimestamp; }
     public static void emit(String action, int sequence, String kind, int delay) {
         System.out.printf("[EVENT] %s|%d|%s|%d|%d%n", action, sequence, kind, delay, timestamp());
     }
     public static ProtocolEvent parse(String line) {
         int start = line.indexOf("[EVENT] ");
         if (start < 0) return null;
-        String[] fields = line.substring(start + 8).split("\\|", -1);
+        String[] fields = line.substring(start + 8).strip().split("\\|", -1);
         try {
             if (fields.length != 4 && fields.length != 5) return null;
             return new ProtocolEvent(fields[0], Integer.parseInt(fields[1]), fields[2], Integer.parseInt(fields[3]), fields.length == 5 ? Long.parseLong(fields[4]) : 0);

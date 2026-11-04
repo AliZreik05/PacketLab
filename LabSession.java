@@ -15,6 +15,11 @@ public final class LabSession implements AutoCloseable {
     public LabSession(Consumer<String> events) { this.events = events; }
 
     public Result transfer(Path input, Path outputDirectory, double loss, int minDelay, int maxDelay) throws Exception {
+        return transfer(input,outputDirectory,loss,minDelay,maxDelay,Experiment.RANDOM);
+    }
+    public Result transfer(Path input, Path outputDirectory, double loss, int minDelay, int maxDelay, Experiment experiment) throws Exception {
+        Objects.requireNonNull(experiment);
+        if(!experiment.custom()) { loss=0;minDelay=10;maxDelay=80; }
         if (!Files.isRegularFile(input)) throw new IOException("Choose an existing file");
         if (!Double.isFinite(loss) || loss < 0 || loss > 1 || minDelay < 0 || maxDelay < minDelay)
             throw new IllegalArgumentException("Invalid loss or delay range");
@@ -26,7 +31,7 @@ public final class LabSession implements AutoCloseable {
         try (DatagramSocket reservation = new DatagramSocket(0)) { port = reservation.getLocalPort(); }
         CountDownLatch ready = new CountDownLatch(1);
         try {
-            Process channel = launch("channel", ready, "UnreliableChannel", "" + port, "" + loss, "" + minDelay, "" + maxDelay);
+            Process channel = launch("channel", ready, "UnreliableChannel", "" + port, "" + loss, "" + minDelay, "" + maxDelay, experiment.name());
             if (!ready.await(10, TimeUnit.SECONDS) || !channel.isAlive()) throw new IOException("Channel failed to start");
             checkCancelled();
             Process receiver = launch("receiver", null, "LabEndpoint", "receive", "" + port, partial.toString());

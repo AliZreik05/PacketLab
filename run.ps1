@@ -18,6 +18,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
 if ($Test) {
     New-Item -ItemType Directory -Path runs -Force | Out-Null
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build LabSmokeTest
+    if ($LASTEXITCODE -ne 0) { throw 'UDP integration checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') -cp build ScenarioTest
+    if ($LASTEXITCODE -ne 0) { throw 'Scenario checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build TracePanelTest
 } else {
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build PacketLab
 }

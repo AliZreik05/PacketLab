@@ -4,6 +4,18 @@ import javax.swing.*;
 
 public class TracePanelTest {
     public static void main(String[] args) throws Exception {
+        long future=java.time.Instant.now().getEpochSecond()*1_000_000_000L+30_000_000_000L;
+        UCPPacket packet=new UCPPacket("A","B",future,"test",false);
+        byte[] wire=packet.toBytes();
+        check(UCPPacket.fromBytes(wire,wire.length).seq==future,"Ordering stamp must survive relay serialization");
+        ProtocolEvent.observe(future);
+        java.io.ByteArrayOutputStream captured=new java.io.ByteArrayOutputStream();
+        java.io.PrintStream original=System.out;
+        try {
+            System.setOut(new java.io.PrintStream(captured));
+            ProtocolEvent.emit("RECEIVE",0,"DATA",0);
+        } finally { System.setOut(original); }
+        check(ProtocolEvent.parse(captured.toString()).occurredAt()>future,"Receive must follow a remote send even if its timestamp is ahead of the local clock");
         SwingUtilities.invokeAndWait(() -> {
             java.util.concurrent.atomic.AtomicLong time=new java.util.concurrent.atomic.AtomicLong();
             TracePanel fast=new TracePanel(time::get);

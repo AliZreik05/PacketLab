@@ -23,6 +23,24 @@ Run the integration checks with `./run.ps1 -Test`, or `java -cp build LabSmokeTe
 after compiling. They exercise empty and binary files, loss and delay, cancellation,
 retry exhaustion, and partial-file cleanup using real local UDP sockets.
 
+## Demonstration presets
+
+Choose a scenario in **Network conditions** before starting:
+
+- **Successful delivery:** no random loss; observe the normal data/ACK exchange.
+- **Lose a data packet:** drop the first data packet once, then deliver retries normally.
+- **Lose an ACK:** drop the first ACK once; the receiver re-acknowledges the duplicate data.
+- **Random loss (custom):** use the editable loss and delay settings for free experiments.
+
+Each preset shows a short explanation in the status line and uses 0% random loss and
+10-80 ms channel delay. Preset conditions are enforced by the session and relay as well
+as shown in the GUI. For an empty file, the first data-side packet is its EOF marker.
+Custom settings are restored when returning to random mode. Drop/delay events in the
+visualization still come from the real relay, including each deliberate drop.
+
+After compiling, run `java -cp build ScenarioTest` to verify all three scenarios and
+the empty-file case using actual UDP transfers and matching output bytes.
+
 ## How it works
 
 ### Live diagram and teaching replay
@@ -40,7 +58,11 @@ changing speed or resuming preserves the animation position. A transfer can fini
 while its visual recording is still playing, and both statuses are shown explicitly.
 
 These are slowed observations, not a latency measurement. Events carry source timestamps
-from the shared local clock and playback sorts by them, briefly buffering live input.
+from the local clock with causal ordering stamps propagated through relay packets.
+Playback sorts by these stamps and briefly buffers live input. The UCP wrapper field
+previously used for its unused sequence number now stores a 64-bit ordering stamp;
+run matching PacketLab endpoint/relay versions together. RUDP sequence numbers stay
+in the data payload.
 Send/forward events are recorded before transmission. Paused steps show the start of
 a movement; Play animates it. The first
 10,000 events are retained and truncation is labeled. The **Technical log** tab

@@ -5,10 +5,10 @@ import java.nio.charset.StandardCharsets;
 public class UCPPacket {    // Wire format for packets exchanged through the UnreliableChannel.
 
     String src, dest, message;
-    int seq;
+    long seq; // Lab ordering stamp; the RUDP sequence number remains in the payload.
     boolean isEnd;      // true for END control packets, false for data packets
 
-    UCPPacket(String src, String dest, int seq, String message, boolean isEnd) {
+    UCPPacket(String src, String dest, long seq, String message, boolean isEnd) {
         this.src = src; 
         this.dest = dest;
         this.seq = seq; 
@@ -25,7 +25,7 @@ public class UCPPacket {    // Wire format for packets exchanged through the Unr
         if (p.length < 5) throw new IllegalArgumentException("Malformed packet");
         String src = p[0];
         String dest = p[1];
-        int seq = Integer.parseInt(p[2]);
+        long seq = Long.parseLong(p[2]);
         boolean isEnd = Boolean.parseBoolean(p[3]);
         String message = p[4];
         return new UCPPacket(src, dest, seq, message, isEnd);

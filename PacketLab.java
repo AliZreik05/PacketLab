@@ -8,6 +8,9 @@ import javax.swing.border.EmptyBorder;
 /** Desktop controls for real stop-and-wait UDP experiments on localhost. */
 public final class PacketLab extends JFrame {
     private final JTextField source = new JTextField();
+    private final JComboBox<Experiment> scenario=new JComboBox<>(Experiment.values());
+    private int customLoss=10,customMin=10,customMax=80;
+    private Experiment previousScenario=Experiment.RANDOM;
     private final JSpinner loss = new JSpinner(new SpinnerNumberModel(10, 0, 100, 5));
     private final JSpinner minDelay = new JSpinner(new SpinnerNumberModel(10, 0, 5000, 10));
     private final JSpinner maxDelay = new JSpinner(new SpinnerNumberModel(80, 0, 5000, 10));
@@ -54,6 +57,8 @@ public final class PacketLab extends JFrame {
         sidebar.add(fileCard); sidebar.add(Box.createVerticalStrut(16));
         JPanel networkCard = LabTheme.card("02  /  NETWORK CONDITIONS");
         JPanel conditions = new JPanel(new GridLayout(0,1,0,12)); conditions.setOpaque(false);
+        scenario.setToolTipText("Choose a repeatable demonstration or custom random loss");
+        conditions.add(scenario);
         String[] settingNames = {"Packet loss (%)", "Min delay (ms)", "Max delay (ms)"};
         JSpinner[] settings = {loss,minDelay,maxDelay};
         for (int i=0;i<settings.length;i++) {
@@ -62,7 +67,7 @@ public final class PacketLab extends JFrame {
             settings[i].setPreferredSize(new Dimension(85,36)); row.add(settings[i],BorderLayout.EAST);
             conditions.add(row);
         }
-        networkCard.add(conditions,BorderLayout.CENTER); networkCard.setMaximumSize(new Dimension(300,205));
+        networkCard.add(conditions,BorderLayout.CENTER); networkCard.setMaximumSize(new Dimension(300,255));
         sidebar.add(networkCard); sidebar.add(Box.createVerticalStrut(16));
         JPanel actions = new JPanel(new GridLayout(0,1,0,10));
         start.putClientProperty("primary", true); actions.add(start); actions.add(cancel); actions.add(open);
@@ -90,6 +95,17 @@ public final class PacketLab extends JFrame {
         page.add(status,BorderLayout.SOUTH);
         cancel.setEnabled(false); open.setEnabled(false);
         LabTheme.style(page);
+        scenario.addActionListener(e -> {
+            Experiment selected=(Experiment)scenario.getSelectedItem();
+            if(previousScenario.custom()) {
+                customLoss=(Integer)loss.getValue();customMin=(Integer)minDelay.getValue();customMax=(Integer)maxDelay.getValue();
+            }
+            loss.setValue(selected.custom() ? customLoss : 0);
+            minDelay.setValue(selected.custom() ? customMin : 10);
+            maxDelay.setValue(selected.custom() ? customMax : 80);
+            loss.setEnabled(selected.custom());minDelay.setEnabled(selected.custom());maxDelay.setEnabled(selected.custom());
+            status.setText(selected.description()); previousScenario=selected;
+        });
         browse.addActionListener(e -> choose());
         demo.addActionListener(e -> demo());
         start.addActionListener(e -> start());
@@ -125,17 +141,18 @@ public final class PacketLab extends JFrame {
             if (!Files.isRegularFile(input)) throw new IllegalArgumentException("Choose a file first");
             int low = (Integer) minDelay.getValue(), high = (Integer) maxDelay.getValue();
             if (low > high) throw new IllegalArgumentException("Minimum delay must not exceed maximum delay");
+            Experiment experiment=(Experiment)scenario.getSelectedItem();
             double probability = ((Integer) loss.getValue()) / 100.0;
             fileSize = Files.size(input); sent = retries = drops = 0;
             log.setText(""); progress.setValue(0); progress.setString("Starting channel...");
-            status.setText("Running on localhost. Loss applies to data and acknowledgements.");
+            status.setText(experiment.description());
             setRunning(true); received = null; open.setEnabled(false);
             trace.reset();
             new SwingWorker<LabSession.Result, String>() {
                 private final LabSession active = new LabSession(line -> publish(line));
                 { session = active; }
                 @Override protected LabSession.Result doInBackground() throws Exception {
-                    return active.transfer(input, Path.of("runs").toAbsolutePath(), probability, low, high);
+                    return active.transfer(input, Path.of("runs").toAbsolutePath(), probability, low, high, experiment);
                 }
                 @Override protected void process(List<String> lines) {
                     for (String line : lines) {
@@ -176,7 +193,9 @@ public final class PacketLab extends JFrame {
     }
     private void setRunning(boolean running) {
         start.setEnabled(!running); cancel.setEnabled(running); browse.setEnabled(!running);
-        demo.setEnabled(!running); loss.setEnabled(!running); minDelay.setEnabled(!running); maxDelay.setEnabled(!running);
+        demo.setEnabled(!running); scenario.setEnabled(!running);
+        boolean custom=((Experiment)scenario.getSelectedItem()).custom();
+        loss.setEnabled(!running && custom); minDelay.setEnabled(!running && custom); maxDelay.setEnabled(!running && custom);
     }
     private void error(Exception e) { JOptionPane.showMessageDialog(this, e.getMessage(), "PacketLab", JOptionPane.ERROR_MESSAGE); }
     public static void main(String[] args) {
