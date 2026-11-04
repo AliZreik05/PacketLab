@@ -33,7 +33,7 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
         socket.setTimeout(RUDP.ACK_TIMEOUT_MS);         //ucp_receive() throws SocketTimeOutException of no ack is received in time
     }
     void sendFile(String fileName) throws FileNotFoundException, IOException {         // Read file and send chunks of size up to 1024, Receiver needs filename to known where to save the file
-        FileInputStream fis = new FileInputStream(fileName);
+        try (FileInputStream fis = new FileInputStream(fileName)) {
         byte[] buffer = new byte[CHUNK_SIZE];
         int bytesRead;
         while ((bytesRead = fis.read(buffer)) != -1) {            // Send file content chunk by chunk
@@ -51,7 +51,7 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
         }
         sendString(fileName);
 
-        fis.close();        // Close streams and sockets
+        } // Close the input even when the transfer fails.
     }
     
     void sendString(String s) { sendBytes(s.getBytes()); } 
@@ -66,7 +66,7 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
         rudp_send(null, 0);     // Indicate EOF
     }
 
-    private void rudp_send(byte[] bytes, int len) {         //send logic. Builds a packet (header + payload), sends it, and waits for the matching ack.Retransmits indefinitely on timeout until the ACK arrives.
+    private void rudp_send(byte[] bytes, int len) {         //send logic. Builds a packet (header + payload), sends it, and waits for the matching ack.Retries on timeout up to the per-packet attempt limit.
         if (len < 0) {
             throw new IllegalArgumentException("Packet length cannot be negative.");
         }
@@ -81,25 +81,34 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
             System.arraycopy(bytes, 0, packet, RUDP.HEADER_SIZE, len);
         }
 
-        while (true) {       // Wait for the matching ACK. Discard any ACKs for other sequence numbers (could be delayed ACKs from a previous retransmit).
+        for (int attempt = 0; attempt < 40; attempt++) {
             try {
+                if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
+                if (attempt > 0) System.out.println("[RETRY] " + sequenceNumber);
                 socket.ucp_send(packet, packet.length);
                 System.out.println("[DATA TRANSMISSION]: " + sequenceNumber + " | " + packet.length);
+                long deadline = System.nanoTime() + RUDP.ACK_TIMEOUT_MS * 1_000_000L;
                 while (true) {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) throw new SocketTimeoutException();
+                    socket.setTimeout((int) Math.max(1, remaining / 1_000_000));
                     byte[] ack = socket.ucp_receive();
+                    if (ack == null) throw new IOException("Peer closed before acknowledgement");
                     if (ack != null && ack.length == RUDP.HEADER_SIZE && RUDP.bytesToInt(ack, 0) == sequenceNumber) {
+                        System.out.println("[ACK] " + sequenceNumber);
                         sequenceNumber++;
                         return;
                     }
                 }
             } 
-            catch (SocketTimeoutException ignored) {        // Retry the same packet until the matching ACK arrives.
+            catch (SocketTimeoutException ignored) {        // Retry the same packet within the attempt budget.
                 
             } 
             catch (Exception e) {
                 throw new RuntimeException("Failed to send RUDP packet.", e);
             }
         }
+        throw new RuntimeException("No acknowledgement after 40 attempts for packet " + sequenceNumber);
     }
 
 }
@@ -113,6 +122,18 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
         socket = new UCPSocket(port, serverHostName, serverPort);
     }
     String receiveString() { return new String(receiveBytes()); } 
+
+    // Stream file data to disk instead of retaining the entire file in memory.
+    long receiveTo(OutputStream output) throws IOException {
+        long total = 0;
+        byte[] chunk;
+        while ((chunk = rudp_receive()) != null) {
+            output.write(chunk);
+            total += chunk.length;
+            System.out.println("[PROGRESS] " + total);
+        }
+        return total;
+    }
 
     byte[] receiveBytes() {            // Keep receiving chunks until an EOF is received, uses a buffer that doubles in size when it fills up
         byte[] buffer = new byte[INITIAL_SIZE];
@@ -131,7 +152,7 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
             try {
                 byte[] packet = nextPacket();       //check buffer before socket
                 if (packet == null) {
-                    return null;
+                    throw new IOException("Peer closed before end of stream");
                 }
                 if (packet.length < RUDP.HEADER_SIZE) {         //if packet is too short, skip it
                     continue;
@@ -210,7 +231,7 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
             // No retransmitted EOF arrived during the grace period.
         } 
         finally {
-            socket.setTimeout(0);       //restore blocking mode
+            socket.setTimeout(30000);   // Bound waits when the sender disappears.
         }
     }
 

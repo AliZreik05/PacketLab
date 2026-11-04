@@ -4,7 +4,7 @@
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 
-public class UCPSocket {
+public class UCPSocket implements AutoCloseable {
 
     private static final int BUFFER_SIZE = 65535;       //max UDP datagram size
 
@@ -22,6 +22,8 @@ public class UCPSocket {
         this.socket      = new DatagramSocket(localPort);
         this.channelAddr = InetAddress.getByName(serverHostName);
         this.channelPort = serverPort;
+        socket.connect(channelAddr, channelPort);
+        socket.setSoTimeout(15000);
 
         //HELLO handshake, needs two clients before session can start
         sendRaw("HELLO".getBytes(StandardCharsets.UTF_8));
@@ -29,15 +31,23 @@ public class UCPSocket {
 
         byte[] buf = new byte[BUFFER_SIZE]; //block until channel assigns us a name and tells us our peers name
         DatagramPacket dp = new DatagramPacket(buf, buf.length);
-        socket.receive(dp);
+        try {
+            socket.receive(dp);
+        } catch (Exception e) {
+            socket.close();
+            throw e;
+        }
 
         String[] parts = new String(dp.getData(), 0, dp.getLength(),        //reply format: "ASSIGN|<myname>|<peername>"
                                     StandardCharsets.UTF_8).split("\\|");
-        if (parts.length != 3 || !"ASSIGN".equals(parts[0]))
+        if (parts.length != 3 || !"ASSIGN".equals(parts[0])) {
+            socket.close();
             throw new Exception("Unexpected handshake reply");
+        }
 
         this.myName   = parts[1];
         this.peerName = parts[2];
+        socket.setSoTimeout(30000);
         System.out.printf("[UCPSocket] Assigned name=%s  peer=%s%n", myName, peerName);
     }
 
@@ -71,9 +81,11 @@ public class UCPSocket {
 
     /** Send END to the peer (via the channel) and close the socket. */
     public void close() throws Exception {
-        sendRaw(UCPPacket.end(myName, peerName).toBytes());
-        System.out.println("[UCPSocket] END sent. Closing socket.");
-        socket.close();
+        try {
+            sendRaw(UCPPacket.end(myName, peerName).toBytes());
+        } finally {
+            socket.close();
+        }
     }
 
     public String getMyName()   { return myName; }

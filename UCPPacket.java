@@ -38,6 +38,6 @@ public class UCPPacket {    // Wire format for packets exchanged through the Unr
     @Override
     public String toString() {
         return isEnd ? "[END] " + src + " -> " + dest
-                     : src + " -> " + dest + " | Seq=" + seq + " | Msg=\"" + message + "\"";
+                     : src + " -> " + dest + " | Seq=" + seq + " | Bytes=" + message.length();
     }
 }
