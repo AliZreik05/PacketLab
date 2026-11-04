@@ -22,6 +22,14 @@ public class RunSummaryTest {
             panel.begin(Path.of("sample.bin"),42,Experiment.DROP_ACK,0,10,80);
             panel.finish(result,2,new LabSession.Result(Path.of("received.bin"),42,2,"sample-hash",result),false,null);
             check(contains(panel,"sample-hash"),"Verified run must show its hash");
+            String longName="long-folder-name/".repeat(20)+"received.bin";
+            panel.finish(result,2,new LabSession.Result(Path.of(longName),42,2,"f".repeat(64),result),false,null);
+            for(int width:new int[]{520,700,900}) {
+                panel.setSize(width,440);layout(panel);
+                check(!hasScrollPane(panel),"Summary must contain no scroll panes");
+                check(hasPathTooltip(panel,Path.of(longName).toString()),"Full file path must remain available without expanding the layout");
+                check(inside(panel,panel.getBounds().width,panel.getBounds().height),"Summary content must fit at "+width);
+            }
             panel.finish(result,2,null,true,"Transfer cancelled");
             check(!contains(panel,"sample-hash")&&contains(panel,"Not verified")&&contains(panel,"Transfer cancelled"),"Cancelled run must clear stale verification");
             panel.begin(Path.of("another.bin"),0,Experiment.NORMAL,0,10,80);
@@ -29,6 +37,16 @@ public class RunSummaryTest {
         });
         System.out.println("PASS summary counts, EOF/ACK distinctions, retry exhaustion, immutable snapshots, and verification reset");
     }
+    static boolean hasScrollPane(Container parent){for(Component c:parent.getComponents()){if(c instanceof JScrollPane)return true;if(c instanceof Container child&&hasScrollPane(child))return true;}return false;}
+    static boolean hasPathTooltip(Container parent,String path){for(Component c:parent.getComponents()){if(c instanceof JComponent jc&&path.equals(jc.getToolTipText()))return true;if(c instanceof Container child&&hasPathTooltip(child,path))return true;}return false;}
+    static boolean inside(Container parent,int width,int height){
+        for(Component c:parent.getComponents())if(c.isVisible()) {
+            if(c.getX()<0||c.getY()<0||c.getX()+c.getWidth()>width||c.getY()+c.getHeight()>height)return false;
+            if(c instanceof Container child&&!inside(child,child.getWidth(),child.getHeight()))return false;
+        }
+        return true;
+    }
+    static void layout(Container c){c.doLayout();for(Component child:c.getComponents())if(child instanceof Container nested)layout(nested);}
     static void send(RunStatistics stats,String action,int sequence,String kind){stats.accept("worker [EVENT] "+action+"|"+sequence+"|"+kind+"|0|1");}
     static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
     static boolean contains(Container parent,String text){

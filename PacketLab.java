@@ -102,7 +102,8 @@ public final class PacketLab extends JFrame {
         log.setBorder(new EmptyBorder(14,14,14,14));
         log.setText("Choose a file or use the demo, then start a transfer.\n");
         JTabbedPane views = new JTabbedPane();
-        views.addTab("Packet flow", trace); views.addTab("Run summary",new JScrollPane(runSummary)); views.addTab("Technical log",new JScrollPane(log));
+        views.addTab("Packet flow", trace);
+        views.addTab("Run summary",runSummary); views.addTab("Technical log",new JScrollPane(log));
         workspace.add(views,BorderLayout.CENTER); page.add(workspace,BorderLayout.CENTER);
         status.setForeground(LabTheme.MUTED); status.setFont(new Font("Segoe UI",Font.PLAIN,12));
         page.add(status,BorderLayout.SOUTH);
