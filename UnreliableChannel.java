@@ -50,6 +50,7 @@ public class UnreliableChannel {
 
         Random         rnd    = new Random();
         DatagramSocket socket = new DatagramSocket(port);
+        System.out.println("[READY]");
         byte[]         buffer = new byte[65535];
 
         //Phase 1: HELLO handshake, waits until both clients have registered before starting the delay
