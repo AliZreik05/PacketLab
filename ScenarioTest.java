@@ -21,6 +21,11 @@ public class ScenarioTest {
             if(!Arrays.equals(bytes,Files.readAllBytes(result.file())))throw new AssertionError("File mismatch");
             List<ProtocolEvent> trace=events.stream().map(ProtocolEvent::parse).filter(Objects::nonNull).toList();
             List<ProtocolEvent> drops=trace.stream().filter(e->e.action().equals("DROP")).toList();
+            RunStatistics.Snapshot counts=result.statistics();
+            if(counts.attempts()!=trace.stream().filter(e->e.action().equals("SEND")).count())throw new AssertionError("Incomplete final attempt count");
+            if(counts.duplicates()!=trace.stream().filter(e->e.action().equals("DUPLICATE")).count())throw new AssertionError("Incomplete final duplicate count");
+            if(counts.dataDrops()+counts.ackDrops()!=drops.size())throw new AssertionError("Incorrect final drop count");
+            if(scenario==Experiment.DROP_ACK&&(counts.retransmissions()<1||counts.duplicates()<1||counts.ackDrops()!=1))throw new AssertionError("Lost ACK summary must show recovery");
             int expected=scenario==Experiment.NORMAL?0:1;
             if(drops.size()!=expected)throw new AssertionError("Expected "+expected+" drops, got "+drops.size());
             if(expected==1) {

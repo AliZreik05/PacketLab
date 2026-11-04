@@ -8,8 +8,12 @@ import java.util.function.Consumer;
 
 /** Runs the original protocol in isolated JVMs, so cancellation closes every socket. */
 public final class LabSession implements AutoCloseable {
-    public record Result(Path file, long bytes, double seconds, String sha256) {}
+    public record Result(Path file, long bytes, double seconds, String sha256, RunStatistics.Snapshot statistics) {}
     private final List<Process> processes = new ArrayList<>();
+    private final List<Thread> readers=new ArrayList<>();
+    private final RunStatistics statistics=new RunStatistics();
+    public RunStatistics.Snapshot statistics(){return statistics.snapshot();}
+    public boolean isCancelled(){return cancelled;}
     private volatile boolean cancelled;
     private final Consumer<String> events;
     public LabSession(Consumer<String> events) { this.events = events; }
@@ -47,8 +51,9 @@ public final class LabSession implements AutoCloseable {
             Path result = run.resolve(input.getFileName());
             if (result.equals(partial)) result = run.resolve("received-" + input.getFileName());
             Files.move(partial, result);
+            stopProcesses(); // Drain event readers before taking the final counters.
             double seconds = (System.nanoTime() - started) / 1_000_000_000.0;
-            return new Result(result, Files.size(result), seconds, receivedHash);
+            return new Result(result, Files.size(result), seconds, receivedHash,statistics.snapshot());
         } finally {
             stopProcesses();
             Files.deleteIfExists(partial);
@@ -66,6 +71,7 @@ public final class LabSession implements AutoCloseable {
             try (BufferedReader lines = process.inputReader()) {
                 String line;
                 while ((line = lines.readLine()) != null) {
+                    statistics.accept(line);
                     if (ready != null && line.equals("[READY]")) ready.countDown();
                     // The original channel prints binary payloads. Keep the UI log textual and concise.
                     if (!line.startsWith("[CHANNEL] Received") && !line.startsWith("[CHANNEL] Forwarded")
@@ -74,6 +80,7 @@ public final class LabSession implements AutoCloseable {
                 }
             } catch (IOException ignored) { /* Process shutdown closes the pipe. */ }
         }, "packetlab-" + label);
+        readers.add(reader);
         reader.setDaemon(true);
         reader.start();
         return process;
@@ -106,6 +113,10 @@ public final class LabSession implements AutoCloseable {
             catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
         processes.clear();
+        for(Thread reader:readers) {
+            try { reader.join(2000); } catch(InterruptedException e){Thread.currentThread().interrupt();}
+        }
+        readers.clear();
     }
     @Override public void close() { cancelled = true; stopProcesses(); }
 }

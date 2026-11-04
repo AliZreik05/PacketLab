@@ -19,6 +19,7 @@ public final class PacketLab extends JFrame {
     private final JSpinner maxDelay = new JSpinner(new SpinnerNumberModel(80, 0, 5000, 10));
     private final JTextArea log = new JTextArea();
     private final TracePanel trace = new TracePanel();
+    private final RunSummaryPanel runSummary=new RunSummaryPanel();
     private final JLabel status = new JLabel("Ready to experiment");
     private final JLabel metrics = new JLabel("Packets sent  0       Retries  0       Drops  0");
     private final JProgressBar progress = new JProgressBar(0, 100);
@@ -101,7 +102,7 @@ public final class PacketLab extends JFrame {
         log.setBorder(new EmptyBorder(14,14,14,14));
         log.setText("Choose a file or use the demo, then start a transfer.\n");
         JTabbedPane views = new JTabbedPane();
-        views.addTab("Packet flow", trace); views.addTab("Technical log",new JScrollPane(log));
+        views.addTab("Packet flow", trace); views.addTab("Run summary",new JScrollPane(runSummary)); views.addTab("Technical log",new JScrollPane(log));
         workspace.add(views,BorderLayout.CENTER); page.add(workspace,BorderLayout.CENTER);
         status.setForeground(LabTheme.MUTED); status.setFont(new Font("Segoe UI",Font.PLAIN,12));
         page.add(status,BorderLayout.SOUTH);
@@ -181,8 +182,10 @@ public final class PacketLab extends JFrame {
             status.setText(experiment.description());
             setRunning(true); received = null; open.setEnabled(false);
             trace.reset();
+            runSummary.begin(input,fileSize,experiment,probability,low,high);
             new SwingWorker<LabSession.Result, String>() {
                 private final LabSession active = new LabSession(line -> publish(line));
+                private final long began=System.nanoTime();
                 { session = active; }
                 @Override protected LabSession.Result doInBackground() throws Exception {
                     return active.transfer(input, Path.of("runs").toAbsolutePath(), probability, low, high, experiment);
@@ -214,11 +217,13 @@ public final class PacketLab extends JFrame {
                         log.append("\nSHA-256: " + result.sha256() + "\nSaved: " + received + "\n");
                         open.setEnabled(true);
                         trace.finished(true);
+                        runSummary.finish(result.statistics(),result.seconds(),result,false,null);
                     } catch (Exception ex) {
                         Throwable cause = ex.getCause() == null ? ex : ex.getCause();
                         progress.setString("Not completed"); status.setText(cause.getMessage());
                         log.append("\n" + cause.getMessage() + "\n");
                         trace.finished(false);
+                        runSummary.finish(active.statistics(),(System.nanoTime()-began)/1_000_000_000.0,null,active.isCancelled(),cause.getMessage());
                     } finally { session = null; setRunning(false); }
                 }
             }.execute();

@@ -41,6 +41,20 @@ visualization still come from the real relay, including each deliberate drop.
 After compiling, run `java -cp build ScenarioTest` to verify all three scenarios and
 the empty-file case using actual UDP transfers and matching output bytes.
 
+## Run summary
+
+The **Run summary** tab shows the latest run's duration, sender transmission attempts,
+retransmissions, receiver duplicates, and separate data/EOF and ACK drops. Counts use
+all observed protocol events rather than the capped replay history; data includes
+filename metadata and EOF, while session-close messages are excluded. A timeout is
+counted separately because the final failed attempt can time out without another retry.
+
+Verified results include the received path, SHA-256 hash, and verified byte count.
+Failed and cancelled runs show captured counts and no verified output. Starting a new
+run clears the previous result. Duration covers setup, transfer, verification and cleanup;
+playback speed does not affect it. Viewing the summary does not interrupt packet replay.
+These are measured facts, not inferred explanations of why a timeout happened.
+
 ## How it works
 
 ### Live diagram and teaching replay

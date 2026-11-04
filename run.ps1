@@ -22,6 +22,8 @@ if ($Test) {
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build ScenarioTest
     if ($LASTEXITCODE -ne 0) { throw 'Scenario checks failed' }
     & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build TracePanelTest
+    if ($LASTEXITCODE -ne 0) { throw 'Playback checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build RunSummaryTest
 } else {
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build PacketLab
 }
