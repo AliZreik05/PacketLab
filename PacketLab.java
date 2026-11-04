@@ -9,6 +9,9 @@ import javax.swing.border.EmptyBorder;
 public final class PacketLab extends JFrame {
     private final JTextField source = new JTextField();
     private final JComboBox<Experiment> scenario=new JComboBox<>(Experiment.values());
+    private final JPanel conditionModes=new JPanel(new CardLayout());
+    private final JLabel forcedDrop=LabTheme.label("",13,LabTheme.ACCENT,true);
+    private final JTextArea presetInfo=new JTextArea(5,20);
     private int customLoss=10,customMin=10,customMax=80;
     private Experiment previousScenario=Experiment.RANDOM;
     private final JSpinner loss = new JSpinner(new SpinnerNumberModel(10, 0, 100, 5));
@@ -58,8 +61,8 @@ public final class PacketLab extends JFrame {
         JPanel networkCard = LabTheme.card("02  /  NETWORK CONDITIONS");
         JPanel conditions = new JPanel(new GridLayout(0,1,0,12)); conditions.setOpaque(false);
         scenario.setToolTipText("Choose a repeatable demonstration or custom random loss");
-        conditions.add(scenario);
-        String[] settingNames = {"Packet loss (%)", "Min delay (ms)", "Max delay (ms)"};
+
+        String[] settingNames = {"Random loss (%)", "Min delay (ms)", "Max delay (ms)"};
         JSpinner[] settings = {loss,minDelay,maxDelay};
         for (int i=0;i<settings.length;i++) {
             JPanel row = new JPanel(new BorderLayout(10,0)); row.setOpaque(false);
@@ -67,7 +70,16 @@ public final class PacketLab extends JFrame {
             settings[i].setPreferredSize(new Dimension(85,36)); row.add(settings[i],BorderLayout.EAST);
             conditions.add(row);
         }
-        networkCard.add(conditions,BorderLayout.CENTER); networkCard.setMaximumSize(new Dimension(300,255));
+        conditionModes.setOpaque(false); conditionModes.add(conditions,"custom");
+        JPanel preset=new JPanel(new BorderLayout(0,10)); preset.setOpaque(false);
+        preset.add(forcedDrop,BorderLayout.NORTH);
+        presetInfo.setEditable(false); presetInfo.setLineWrap(true); presetInfo.setWrapStyleWord(true);
+        presetInfo.setFont(new Font("Segoe UI",Font.PLAIN,12)); presetInfo.setForeground(LabTheme.MUTED);
+        presetInfo.setOpaque(false); presetInfo.setBorder(null); preset.add(presetInfo,BorderLayout.CENTER);
+        conditionModes.add(preset,"preset");
+        JPanel conditionBody=new JPanel(new BorderLayout(0,14)); conditionBody.setOpaque(false);
+        conditionBody.add(scenario,BorderLayout.NORTH); conditionBody.add(conditionModes,BorderLayout.CENTER);
+        networkCard.add(conditionBody,BorderLayout.CENTER); networkCard.setMaximumSize(new Dimension(300,255));
         sidebar.add(networkCard); sidebar.add(Box.createVerticalStrut(16));
         JPanel actions = new JPanel(new GridLayout(0,1,0,10));
         start.putClientProperty("primary", true); actions.add(start); actions.add(cancel); actions.add(open);
@@ -104,8 +116,10 @@ public final class PacketLab extends JFrame {
             minDelay.setValue(selected.custom() ? customMin : 10);
             maxDelay.setValue(selected.custom() ? customMax : 80);
             loss.setEnabled(selected.custom());minDelay.setEnabled(selected.custom());maxDelay.setEnabled(selected.custom());
+            showScenario(selected);
             status.setText(selected.description()); previousScenario=selected;
         });
+        showScenario(Experiment.RANDOM);
         browse.addActionListener(e -> choose());
         demo.addActionListener(e -> demo());
         start.addActionListener(e -> start());
@@ -121,6 +135,24 @@ public final class PacketLab extends JFrame {
         setMinimumSize(new Dimension(1160, 820)); setSize(1050, 880); setLocationRelativeTo(null);
     }
 
+    private void showScenario(Experiment selected) {
+        ((CardLayout)conditionModes.getLayout()).show(conditionModes,selected.custom()?"custom":"preset");
+        forcedDrop.setText(switch(selected) {
+            case NORMAL -> "Forced drop: none";
+            case DROP_DATA -> "Drop: first DATA, once";
+            case DROP_ACK -> "Drop: first ACK, once";
+            default -> "";
+        });
+        String lesson=switch(selected) {
+            case NORMAL -> "Watch a normal data / ACK exchange.";
+            case DROP_DATA -> "Watch the timeout and retransmission.";
+            case DROP_ACK -> "Watch the retry arrive as a duplicate.";
+            default -> "";
+        };
+        presetInfo.setText("Random loss: OFF\nDelay: 10-80 ms (fixed)\n\n"+lesson);
+        forcedDrop.setToolTipText(selected==Experiment.DROP_DATA ? "For an empty file, the first EOF packet is dropped instead." : selected.description());
+        conditionModes.revalidate(); conditionModes.repaint();
+    }
     private void choose() {
         JFileChooser picker = new JFileChooser();
         if (picker.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
