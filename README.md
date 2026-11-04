@@ -8,7 +8,8 @@ and retransmissions. A run succeeds only when the original and received SHA-256 
 
 Requires JDK 21 or newer. No third-party Java dependencies.
 
-On Windows, run `./run.ps1` in PowerShell. Select **Use demo file**, then **Start transfer**.
+On Windows, double-click **PacketLab.cmd** in this folder. It compiles the project and opens the app.
+You can also run `./run.ps1` in PowerShell. Select **Use demo file**, then **Start transfer**.
 Use **Cancel** to stop an experiment. Verified output is saved in a unique directory under `runs/`.
 
 On other platforms:
