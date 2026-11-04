@@ -132,6 +132,7 @@ public final class PacketLab extends JFrame {
             try { Desktop.getDesktop().open(received.getParent().toFile()); }
             catch (Exception ex) { error(ex); }
         });
+        WindowChrome.install(this,page);
         setMinimumSize(new Dimension(1160, 820)); setSize(1050, 880); setLocationRelativeTo(null);
     }
 
