@@ -65,7 +65,7 @@ public class TracePanelTest {
             check(list.getSelectedIndex() == 100, "Latest must select the last captured event");
             button(panel, "Previous").doClick();
             check(list.getSelectedIndex() == 99, "Previous must step back");
-            button(panel, "Replay from start").doClick();
+            button(panel, "First step").doClick();
             check(list.getSelectedIndex() == 0, "Replay starts at first event");
             panel.reset();
             panel.accept(new ProtocolEvent("RECEIVE",5,"DATA",0,400));
@@ -80,7 +80,7 @@ public class TracePanelTest {
             for(int i=0;i<ordered.length;i++) {
                 check(list.getModel().getElementAt(i).toString().contains(ordered[i]), "Out-of-order process logs must be sorted at step " + i);
             }
-            button(panel,"Replay from start").doClick();
+            button(panel,"First step").doClick();
             check(find(panel,JTextArea.class).getText().contains("sender sends DATA 5"),"Replay must begin with SEND even if its log arrives late");
             button(panel,"Next step").doClick();
             check(find(panel,JTextArea.class).getText().contains("25 ms"),"Delay must precede forwarding and acceptance");

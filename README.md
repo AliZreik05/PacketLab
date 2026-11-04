@@ -65,7 +65,7 @@ waiting in the channel, red marks a drop or timeout, and purple marks a duplicat
 The last data packet and ACK stay visible on their own lanes; inactive markers are
 dimmed for context. Labels explain each state so color is not the only signal.
 
-Use **Pause view**, **Next step**, **Previous**, **Replay from start**, or select an
+Use **Pause view**, **Next step**, **Previous**, **First step**, or select an
 event in the history to inspect a run. **Latest event** jumps to the newest captured
 event. Playback speed, pause/resume, and the real transfer operate independently;
 changing speed or resuming preserves the animation position. A transfer can finish

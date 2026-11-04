@@ -16,7 +16,7 @@ public final class TracePanel extends JPanel {
     private final JTextArea explanation = new JTextArea(2, 45);
     private final JLabel mode = new JLabel("READY  |  Choose a file and start a transfer");
     private final JButton play = new JButton("Pause view"), previous = new JButton("Previous"), next = new JButton("Next step");
-    private final JButton restart = new JButton("Replay from start"), latest = new JButton("Latest event");
+    private final JButton restart = new JButton("First step"), latest = new JButton("Latest event");
     private final List<JButton> speedButtons = new ArrayList<>();
     private final Diagram canvas = new Diagram();
     private final Timer timer;
@@ -46,7 +46,7 @@ public final class TracePanel extends JPanel {
             button.addActionListener(e -> changeSpeed(rate)); speedButtons.add(button);
         }
 
-        toolbar.add(play); toolbar.add(previous); toolbar.add(next);
+        toolbar.add(play); toolbar.add(restart); toolbar.add(previous); toolbar.add(next);
         toolbar.add(LabTheme.label("Speed",11,LabTheme.MUTED,false));
         for(JButton speedButton:speedButtons) toolbar.add(speedButton);
         JButton toggleHistory=new JButton("History"); toolbar.add(toggleHistory);
@@ -60,7 +60,7 @@ public final class TracePanel extends JPanel {
         JScrollPane scroll = new JScrollPane(history); scroll.setMinimumSize(new Dimension(210, 100));
         JPanel events = new JPanel(new BorderLayout(0, 6));
         JPanel historyActions=new JPanel(new FlowLayout(FlowLayout.LEFT,5,0));
-        historyActions.add(restart); historyActions.add(latest);
+        historyActions.add(latest);
         events.add(historyActions,BorderLayout.NORTH);
         events.add(scroll, BorderLayout.CENTER);
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, canvas, events);
@@ -97,6 +97,7 @@ public final class TracePanel extends JPanel {
         });
         previous.addActionListener(e -> inspect(cursor - 1));
         next.addActionListener(e -> inspect(cursor + 1));
+        restart.setToolTipText("Jump to the first recorded event and pause the view");
         restart.addActionListener(e -> inspect(0));
         latest.addActionListener(e -> inspect(trace.size() - 1));
         history.addListSelectionListener(e -> {
