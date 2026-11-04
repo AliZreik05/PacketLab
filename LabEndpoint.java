@@ -6,6 +6,7 @@ import java.nio.file.Path;
 public final class LabEndpoint {
     public static void main(String[] args) {
         try {
+            System.setProperty("packetlab.role", args[0].equals("send") ? "sender" : "receiver");
             int channelPort = Integer.parseInt(args[1]);
             Path file = Path.of(args[2]);
             if (args[0].equals("send")) {

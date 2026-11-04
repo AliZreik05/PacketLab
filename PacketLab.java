@@ -12,6 +12,7 @@ public final class PacketLab extends JFrame {
     private final JSpinner minDelay = new JSpinner(new SpinnerNumberModel(10, 0, 5000, 10));
     private final JSpinner maxDelay = new JSpinner(new SpinnerNumberModel(80, 0, 5000, 10));
     private final JTextArea log = new JTextArea();
+    private final TracePanel trace = new TracePanel();
     private final JLabel status = new JLabel("Ready to experiment");
     private final JLabel metrics = new JLabel("Packets sent  0       Retries  0       Drops  0");
     private final JProgressBar progress = new JProgressBar(0, 100);
@@ -32,46 +33,63 @@ public final class PacketLab extends JFrame {
                 dispose();
             }
         });
-        JPanel page = new JPanel(new BorderLayout(0, 20));
-        page.setBorder(new EmptyBorder(26, 30, 26, 30));
-        setContentPane(page);
-        JPanel heading = new JPanel(new GridLayout(0, 1, 0, 6));
-        JLabel title = new JLabel("PacketLab");
-        title.setFont(new Font("SansSerif", Font.BOLD, 32));
-        heading.add(title);
-        heading.add(new JLabel("Drop packets. Add delay. Watch reliability happen."));
-        heading.add(new JLabel("LOCAL UDP LAB   /   Stop-and-wait   /   1,024-byte payloads"));
-        page.add(heading, BorderLayout.NORTH);
+        JPanel page = new JPanel(new BorderLayout(22, 20));
+        page.setBorder(new EmptyBorder(24, 26, 18, 26)); setContentPane(page);
+        JPanel heading = new JPanel(new BorderLayout());
+        JPanel brand = new JPanel(new GridLayout(0,1,0,4));
+        brand.add(LabTheme.label("PacketLab", 29, LabTheme.TEXT, true));
+        brand.add(LabTheme.label("Explore how reliable delivery survives an unreliable network.", 13, LabTheme.MUTED, false));
+        heading.add(brand, BorderLayout.WEST);
+        JLabel badge = LabTheme.label("LOCAL UDP  /  STOP-AND-WAIT", 11, LabTheme.ACCENT, true);
+        heading.add(badge, BorderLayout.EAST); page.add(heading, BorderLayout.NORTH);
 
-        JPanel body = new JPanel(new BorderLayout(0, 16));
-        JPanel controls = new JPanel(new GridLayout(0, 1, 0, 12));
-        JPanel fileRow = new JPanel(new BorderLayout(8, 0));
-        source.setEditable(false);
-        source.setToolTipText("Choose the file to transfer through the simulated unreliable channel");
-        fileRow.add(source, BorderLayout.CENTER);
-        JPanel files = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        files.add(browse); files.add(demo); fileRow.add(files, BorderLayout.EAST);
-        controls.add(fileRow);
-        JPanel conditions = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        conditions.add(new JLabel("Packet loss (%)")); conditions.add(loss);
-        conditions.add(new JLabel("Delay min (ms)")); conditions.add(minDelay);
-        conditions.add(new JLabel("max (ms)")); conditions.add(maxDelay);
-        controls.add(conditions);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        actions.add(start); actions.add(cancel); actions.add(open);
+        JPanel sidebar = new JPanel(); sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setPreferredSize(new Dimension(270, 500));
+        JPanel fileCard = LabTheme.card("01  /  SOURCE FILE");
+        JPanel fileControls = new JPanel(new GridLayout(0,1,0,10)); fileControls.setOpaque(false);
+        source.setEditable(false); source.setText("");
+        source.setToolTipText("The original stays untouched. A received copy is saved under runs/.");
+        fileControls.add(source); fileControls.add(browse); fileControls.add(demo);
+        fileCard.add(fileControls,BorderLayout.CENTER); fileCard.setMaximumSize(new Dimension(300,205));
+        sidebar.add(fileCard); sidebar.add(Box.createVerticalStrut(16));
+        JPanel networkCard = LabTheme.card("02  /  NETWORK CONDITIONS");
+        JPanel conditions = new JPanel(new GridLayout(0,1,0,12)); conditions.setOpaque(false);
+        String[] settingNames = {"Packet loss (%)", "Min delay (ms)", "Max delay (ms)"};
+        JSpinner[] settings = {loss,minDelay,maxDelay};
+        for (int i=0;i<settings.length;i++) {
+            JPanel row = new JPanel(new BorderLayout(10,0)); row.setOpaque(false);
+            row.add(LabTheme.label(settingNames[i],13,LabTheme.TEXT,false),BorderLayout.WEST);
+            settings[i].setPreferredSize(new Dimension(85,36)); row.add(settings[i],BorderLayout.EAST);
+            conditions.add(row);
+        }
+        networkCard.add(conditions,BorderLayout.CENTER); networkCard.setMaximumSize(new Dimension(300,205));
+        sidebar.add(networkCard); sidebar.add(Box.createVerticalStrut(16));
+        JPanel actions = new JPanel(new GridLayout(0,1,0,10));
+        start.putClientProperty("primary", true); actions.add(start); actions.add(cancel); actions.add(open);
+        actions.setMaximumSize(new Dimension(300,130)); sidebar.add(actions); sidebar.add(Box.createVerticalGlue());
+        sidebar.add(LabTheme.label("1,024-byte payloads  /  SHA-256 verified",11,LabTheme.MUTED,false));
+        page.add(sidebar,BorderLayout.WEST);
+
+        JPanel workspace = new JPanel(new BorderLayout(0,14));
+        JPanel summary = new JPanel(new BorderLayout());
+        summary.setBorder(new EmptyBorder(5,0,8,0));
+        JPanel summaryBody = new JPanel(new BorderLayout(0,12)); summaryBody.setOpaque(false);
+        metrics.setFont(new Font("Segoe UI",Font.BOLD,15)); metrics.setForeground(LabTheme.TEXT);
+        summaryBody.add(metrics,BorderLayout.NORTH);
+        progress.setBorderPainted(false); progress.setStringPainted(true); progress.setString("Ready when you are");
+        progress.setPreferredSize(new Dimension(600,25)); summaryBody.add(progress,BorderLayout.SOUTH);
+        summary.add(summaryBody,BorderLayout.CENTER); workspace.add(summary,BorderLayout.NORTH);
+        log.setEditable(false); log.setFont(new Font("Consolas",Font.PLAIN,12));
+        log.setBackground(LabTheme.BG); log.setForeground(new Color(180,207,232));
+        log.setBorder(new EmptyBorder(14,14,14,14));
+        log.setText("Choose a file or use the demo, then start a transfer.\n");
+        JTabbedPane views = new JTabbedPane();
+        views.addTab("Packet flow", trace); views.addTab("Technical log",new JScrollPane(log));
+        workspace.add(views,BorderLayout.CENTER); page.add(workspace,BorderLayout.CENTER);
+        status.setForeground(LabTheme.MUTED); status.setFont(new Font("Segoe UI",Font.PLAIN,12));
+        page.add(status,BorderLayout.SOUTH);
         cancel.setEnabled(false); open.setEnabled(false);
-        controls.add(actions);
-        progress.setStringPainted(true); progress.setString("No transfer running");
-        controls.add(progress); controls.add(metrics);
-        body.add(controls, BorderLayout.NORTH);
-        log.setEditable(false);
-        log.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        log.setBackground(new Color(20, 28, 42)); log.setForeground(new Color(190, 221, 235));
-        log.setBorder(new EmptyBorder(12, 12, 12, 12));
-        log.setText("Your experiment log will appear here.\nA successful run requires matching SHA-256 file hashes.\n");
-        body.add(new JScrollPane(log), BorderLayout.CENTER);
-        page.add(body, BorderLayout.CENTER);
-        page.add(status, BorderLayout.SOUTH);
+        LabTheme.style(page);
         browse.addActionListener(e -> choose());
         demo.addActionListener(e -> demo());
         start.addActionListener(e -> start());
@@ -84,7 +102,7 @@ public final class PacketLab extends JFrame {
             try { Desktop.getDesktop().open(received.getParent().toFile()); }
             catch (Exception ex) { error(ex); }
         });
-        setMinimumSize(new Dimension(820, 600)); setSize(980, 740); setLocationRelativeTo(null);
+        setMinimumSize(new Dimension(1160, 820)); setSize(1050, 880); setLocationRelativeTo(null);
     }
 
     private void choose() {
@@ -112,6 +130,7 @@ public final class PacketLab extends JFrame {
             log.setText(""); progress.setValue(0); progress.setString("Starting channel...");
             status.setText("Running on localhost. Loss applies to data and acknowledgements.");
             setRunning(true); received = null; open.setEnabled(false);
+            trace.reset();
             new SwingWorker<LabSession.Result, String>() {
                 private final LabSession active = new LabSession(line -> publish(line));
                 { session = active; }
@@ -120,6 +139,8 @@ public final class PacketLab extends JFrame {
                 }
                 @Override protected void process(List<String> lines) {
                     for (String line : lines) {
+                        ProtocolEvent event = ProtocolEvent.parse(line);
+                        if (event != null) trace.accept(event);
                         if (line.contains("[DATA TRANSMISSION]")) sent++;
                         if (line.contains("[RETRY]")) retries++;
                         if (line.contains("[CHANNEL] DROPPED")) drops++;
@@ -142,10 +163,12 @@ public final class PacketLab extends JFrame {
                                 result.bytes(), result.seconds(), result.bytes() / 1024.0 / result.seconds()));
                         log.append("\nSHA-256: " + result.sha256() + "\nSaved: " + received + "\n");
                         open.setEnabled(true);
+                        trace.finished(true);
                     } catch (Exception ex) {
                         Throwable cause = ex.getCause() == null ? ex : ex.getCause();
                         progress.setString("Not completed"); status.setText(cause.getMessage());
                         log.append("\n" + cause.getMessage() + "\n");
+                        trace.finished(false);
                     } finally { session = null; setRunning(false); }
                 }
             }.execute();
@@ -158,7 +181,7 @@ public final class PacketLab extends JFrame {
     private void error(Exception e) { JOptionPane.showMessageDialog(this, e.getMessage(), "PacketLab", JOptionPane.ERROR_MESSAGE); }
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+            LabTheme.install();
             new PacketLab().setVisible(true);
         });
     }

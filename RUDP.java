@@ -85,6 +85,7 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
             try {
                 if (Thread.currentThread().isInterrupted()) throw new IOException("Transfer cancelled");
                 if (attempt > 0) System.out.println("[RETRY] " + sequenceNumber);
+ProtocolEvent.emit("SEND", sequenceNumber, len == 0 ? "EOF" : "DATA", 0);
                 socket.ucp_send(packet, packet.length);
                 System.out.println("[DATA TRANSMISSION]: " + sequenceNumber + " | " + packet.length);
                 long deadline = System.nanoTime() + RUDP.ACK_TIMEOUT_MS * 1_000_000L;
@@ -96,13 +97,14 @@ class RUDPSender {          //sends data reliably over an unreliable channel usi
                     if (ack == null) throw new IOException("Peer closed before acknowledgement");
                     if (ack != null && ack.length == RUDP.HEADER_SIZE && RUDP.bytesToInt(ack, 0) == sequenceNumber) {
                         System.out.println("[ACK] " + sequenceNumber);
+                        ProtocolEvent.emit("ACK_RECEIVE", sequenceNumber, "ACK", 0);
                         sequenceNumber++;
                         return;
                     }
                 }
             } 
             catch (SocketTimeoutException ignored) {        // Retry the same packet within the attempt budget.
-                
+                ProtocolEvent.emit("TIMEOUT", sequenceNumber, len == 0 ? "EOF" : "DATA", 0);
             } 
             catch (Exception e) {
                 throw new RuntimeException("Failed to send RUDP packet.", e);
@@ -161,6 +163,7 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
                 int receivedSequence = RUDP.bytesToInt(packet, 0);
                 System.out.println("[DATA RECEPTION]: " + sequenceNumber + " | " + packet.length + " | " + (receivedSequence == sequenceNumber ? "OK" : "DISCARDED"));
                 if (receivedSequence == sequenceNumber) {
+                    ProtocolEvent.emit("RECEIVE", receivedSequence, packet.length == 4 ? "EOF" : "DATA", 0);
                     sendAck(receivedSequence);
                     sequenceNumber++;
 
@@ -172,6 +175,7 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
                 }
 
                 if (receivedSequence < sequenceNumber) {        //if this packet was already acked, send it again so the sender can move on
+                    ProtocolEvent.emit("DUPLICATE", receivedSequence, packet.length == 4 ? "EOF" : "DATA", 0);
                     sendAck(receivedSequence);
                 }
             } 
@@ -184,6 +188,7 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
 
     private void sendAck(int ackSequence) throws Exception {        // Sends a 4-byte ACK containing the sequence number being acknowledged
         byte[] ack = RUDP.intToBytes(ackSequence);
+        ProtocolEvent.emit("ACK_SEND", ackSequence, "ACK", 0);
         socket.ucp_send(ack, ack.length);
     }
 
@@ -213,12 +218,14 @@ class RUDPReceiver {        //receives the data send by sender and sends an ack 
 
                 int receivedSequence = RUDP.bytesToInt(packet, 0);
                 if (receivedSequence == eofSequence) {       // Sender retransmitted the EOF — re-ACK and reset the deadline
+                    ProtocolEvent.emit("DUPLICATE", receivedSequence, "EOF", 0);
                     sendAck(receivedSequence);
                     deadline = System.currentTimeMillis() + RUDP.EOF_LINGER_MS;
                     continue;
                 }
 
                 if (receivedSequence < sequenceNumber) {        // Old duplicate from earlier in the stream, just re-ACK it
+                    ProtocolEvent.emit("DUPLICATE", receivedSequence, packet.length == 4 ? "EOF" : "DATA", 0);
                     sendAck(receivedSequence);
                     continue;
                 }

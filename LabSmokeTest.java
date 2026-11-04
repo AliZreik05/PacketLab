@@ -50,6 +50,32 @@ public final class LabSmokeTest {
             try { result = session.transfer(input, root, loss, low, high); }
             catch (Exception e) { events.forEach(System.err::println); throw e; }
             if (!Arrays.equals(data, Files.readAllBytes(result.file()))) throw new AssertionError(name);
+            List<ProtocolEvent> trace = events.stream().map(ProtocolEvent::parse).filter(Objects::nonNull).toList();
+            for (String action : List.of("SEND", "DELAY", "FORWARD", "RECEIVE", "ACK_SEND", "ACK_RECEIVE")) {
+                if (trace.stream().noneMatch(event -> event.action().equals(action)))
+                    throw new AssertionError("Missing visualization event: " + action);
+            }
+            if(loss == 0) {
+                List<ProtocolEvent> ordered = trace.stream().sorted(Comparator.comparingLong(ProtocolEvent::occurredAt)).toList();
+                for(String kind : List.of(data.length==0 ? "EOF" : "DATA","ACK")) {
+                    String[] actions = kind.equals("ACK") ? new String[]{"ACK_SEND","DELAY","FORWARD","ACK_RECEIVE"}
+                            : new String[]{"SEND","DELAY","FORWARD","RECEIVE"};
+                    int previous=-1;
+                    for(String action:actions) {
+                        int found=-1;
+                        for(int i=0;i<ordered.size();i++) {
+                            ProtocolEvent event=ordered.get(i);
+                            if(event.sequence()==0 && event.kind().equals(kind) && event.action().equals(action)) {found=i;break;}
+                        }
+                        if(found<=previous) throw new AssertionError("Noncausal event order: "+kind+" "+action);
+                        previous=found;
+                    }
+                }
+            }
+            String firstKind = data.length == 0 ? "EOF" : "DATA";
+            if (trace.stream().noneMatch(event -> event.action().equals("DELAY") && event.sequence() == 0 && event.kind().equals(firstKind))
+                    || trace.stream().noneMatch(event -> event.action().equals("DELAY") && event.sequence() == 0 && event.kind().equals("ACK")))
+                throw new AssertionError("Channel must distinguish data/EOF from ACKs regardless of registration order");
             System.out.println("PASS " + name + " (" + result.bytes() + " bytes)");
         }
     }

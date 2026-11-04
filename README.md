@@ -25,6 +25,29 @@ retry exhaustion, and partial-file cleanup using real local UDP sockets.
 
 ## How it works
 
+### Live diagram and teaching replay
+
+The **Packet flow** tab plays real events emitted by the endpoints and channel at a
+readable pace. Blue marks data in transit, green marks ACKs, amber marks a packet
+waiting in the channel, red marks a drop or timeout, and purple marks a duplicate.
+The last data packet and ACK stay visible on their own lanes; inactive markers are
+dimmed for context. Labels explain each state so color is not the only signal.
+
+Use **Pause view**, **Next step**, **Previous**, **Replay from start**, or select an
+event in the history to inspect a run. **Latest event** jumps to the newest captured
+event. Playback speed, pause/resume, and the real transfer operate independently;
+changing speed or resuming preserves the animation position. A transfer can finish
+while its visual recording is still playing, and both statuses are shown explicitly.
+
+These are slowed observations, not a latency measurement. Events carry source timestamps
+from the shared local clock and playback sorts by them, briefly buffering live input.
+Send/forward events are recorded before transmission. Paused steps show the start of
+a movement; Play animates it. The first
+10,000 events are retained and truncation is labeled. The **Technical log** tab
+retains text output. DATA includes the legacy filename metadata; EOF ends a stream,
+not necessarily the entire experiment. Run `java -Djava.awt.headless=true -cp build
+TracePanelTest` after compilation for the playback regression checks.
+
 The GUI starts an unreliable relay and two transfer endpoints in separate JVMs.
 Endpoints use the original UCP packet wrapper and stop-and-wait RUDP implementation.
 Each data packet carries a sequence number; the sender advances after receiving the

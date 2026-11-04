@@ -26,7 +26,8 @@ public class UCPSocket implements AutoCloseable {
         socket.setSoTimeout(15000);
 
         //HELLO handshake, needs two clients before session can start
-        sendRaw("HELLO".getBytes(StandardCharsets.UTF_8));
+        String role = System.getProperty("packetlab.role", "");
+        sendRaw((role.isEmpty() ? "HELLO" : "HELLO|" + role).getBytes(StandardCharsets.UTF_8));
         System.out.println("[UCPSocket] HELLO sent — waiting for name assignment...");
 
         byte[] buf = new byte[BUFFER_SIZE]; //block until channel assigns us a name and tells us our peers name

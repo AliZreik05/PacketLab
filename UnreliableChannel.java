@@ -23,6 +23,7 @@ public class UnreliableChannel {
     private static final Map<String, Stats>             stats  = new HashMap<>();
     private static final Set<String>                    ended  = new HashSet<>();       //tracks which clients have sent END packet
     private static final AtomicInteger                  active = new AtomicInteger(0);      //number of in-flight threads
+    private static final Map<String, String> roles = new HashMap<>();
 
     public static void main(String[] args) throws Exception {
 
@@ -62,10 +63,12 @@ public class UnreliableChannel {
                                     StandardCharsets.UTF_8).trim();
             InetSocketAddress sender = new InetSocketAddress(dp.getAddress(), dp.getPort());
 
-            if (!"HELLO".equals(msg) || users.containsValue(sender)) continue;       // Ignore anything that isn't a HELLO, or duplicate HELLOs from the same client
+            if (!(msg.equals("HELLO") || msg.equals("HELLO|sender") || msg.equals("HELLO|receiver"))
+                    || users.containsValue(sender)) continue;
 
             String name = users.isEmpty() ? "A" : "B";
             users.put(name, sender);
+            if (msg.contains("|")) roles.put(name, msg.substring(6));
             System.out.printf("[CHANNEL] %s connected — assigned name \"%s\"%n", sender, name);
         }
 
@@ -100,12 +103,14 @@ public class UnreliableChannel {
             // Loss decision (END is also subject to loss)
             double d = rnd.nextDouble();
             if (d <= p) {
+                trace("DROP", pkt, 0);
                 System.out.printf("[CHANNEL] DROPPED from %s (d=%.3f <= p=%.3f)%n", src, d, p);
                 if (s != null && !pkt.isEnd) s.lost++;
                 continue;
             }
 
             int delay = minD + rnd.nextInt(maxD - minD + 1);        //forward the packet after a random delay in [mindD,maxD]
+            trace("DELAY", pkt, delay);
             if (!pkt.isEnd) {
                 System.out.printf("[CHANNEL] FORWARDING from %s with delay=%d ms%n", src, delay);
                 if (s != null) { s.delayed++; s.totalDelay += delay; }
@@ -140,6 +145,7 @@ public class UnreliableChannel {
                     return;
                 }
                 byte[] data = pkt.toBytes();
+                trace("FORWARD", pkt, delayMs);
                 socket.send(new DatagramPacket(data, data.length,
                         addr.getAddress(), addr.getPort()));
                 System.out.printf("[CHANNEL] Forwarded to %s | %s%n", pkt.dest, pkt);
@@ -166,5 +172,13 @@ public class UnreliableChannel {
         System.out.printf("Average delay from B to A: %.1f ms.%n",
                 b.delayed > 0 ? b.totalDelay / b.delayed : 0.0);
         System.out.println("=========================================");
+    }
+
+    private static void trace(String action, UCPPacket packet, int delay) {
+        if (packet.isEnd || !roles.containsKey(packet.src)) return;
+        byte[] data = packet.message.getBytes(StandardCharsets.ISO_8859_1);
+        if (data.length < RUDP.HEADER_SIZE) return;
+        String kind = roles.get(packet.src).equals("receiver") ? "ACK" : data.length == 4 ? "EOF" : "DATA";
+        ProtocolEvent.emit(action, RUDP.bytesToInt(data, 0), kind, delay);
     }
 }
