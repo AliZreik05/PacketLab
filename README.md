@@ -62,6 +62,37 @@ run clears the previous result. Duration covers setup, transfer, verification an
 playback speed does not affect it. Viewing the summary does not interrupt packet replay.
 These are measured facts, not inferred explanations of why a timeout happened.
 
+## Batch experiments
+
+Choose **Batch experiments** from the top-level mode bar and select its input file.
+Single transfer and Batch experiments have independent file selections and pages.
+Packet flow, Run summary, and Technical log belong to Single transfer. Enter comma-separated loss
+percentages (for example `0, 5, 10, 20`), comma-separated delay ranges (`10-80, 80-150`),
+and the number of repeats. Every loss value is paired with every delay range.
+The default is 12 trials. A batch is limited to 100 total trials and 20 repeats per
+condition. These are custom random-loss experiments, independent of the single-run preset.
+
+Trials run sequentially with fresh processes, sockets and random channel decisions.
+One verified snapshot of the source file is used throughout, so later source changes
+cannot silently change the data being compared. Copies are retained under `runs/batch-*`.
+The original input file is never modified by the runner. A failed trial does not stop
+later trials. **Cancel batch** stops the current transfer and all remaining trials.
+
+The table updates after each trial:
+
+- Success percentage uses verified / (verified + failed). Cancelled and unstarted trials
+  are excluded and cancellation counts are shown separately.
+- Average duration includes only verified trials, including startup, transfer, hash
+  verification and cleanup. The initial snapshot preparation is excluded.
+- Average retransmissions includes all finished trials, both verified and failed.
+- No verified trials produces a dash for average duration, rather than a misleading zero.
+
+These are descriptive measurements with fresh, unseeded randomness, not a controlled
+benchmark with confidence intervals. Batch transfers do not feed the single-run animation
+or summary. Single transfers and batches cannot run concurrently through the GUI.
+After compilation, run `java -cp build BatchTest` for averaging, stable-input, repeat,
+retry-exhaustion, failure-continuation and active-cancellation checks.
+
 ## How it works
 
 ### Live diagram and teaching replay

@@ -30,6 +30,10 @@ if ($Test) {
     & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build RunSummaryTest
     if ($LASTEXITCODE -ne 0) { throw 'Summary checks failed' }
     & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build FilePickerTest
+    if ($LASTEXITCODE -ne 0) { throw 'File dialog checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') -cp build BatchTest
+    if ($LASTEXITCODE -ne 0) { throw 'Batch checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build ExperimentModesTest
 } else {
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build PacketLab
 }

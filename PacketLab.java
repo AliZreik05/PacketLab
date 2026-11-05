@@ -8,6 +8,8 @@ import javax.swing.border.EmptyBorder;
 /** Desktop controls for real stop-and-wait UDP experiments on localhost. */
 public final class PacketLab extends JFrame {
     private final JTextField source = new JTextField();
+    private final JTextField batchSource=new JTextField();
+    private final JButton batchBrowse=new JButton("Choose file"),batchDemo=new JButton("Use demo file");
     private final JComboBox<Experiment> scenario=new JComboBox<>(Experiment.values());
     private final JPanel conditionModes=new JPanel(new CardLayout());
     private final JLabel forcedDrop=LabTheme.label("",13,LabTheme.ACCENT,true);
@@ -20,12 +22,14 @@ public final class PacketLab extends JFrame {
     private final JTextArea log = new JTextArea();
     private final TracePanel trace = new TracePanel();
     private final RunSummaryPanel runSummary=new RunSummaryPanel();
+
     private final JLabel status = new JLabel("Ready to experiment");
     private final JLabel metrics = new JLabel("Packets sent  0       Retries  0       Drops  0");
     private final JProgressBar progress = new JProgressBar(0, 100);
     private final JButton start = new JButton("Start transfer"), cancel = new JButton("Cancel");
     private final JButton browse = new JButton("Choose file"), demo = new JButton("Use demo file");
     private final JButton open = new JButton("Open received folder");
+    private final BatchPanel batch=new BatchPanel(()->batchSource.getText().isBlank()?null:Path.of(batchSource.getText()),running->{setRunning(running);if(running)cancel.setEnabled(false);});
     private LabSession session;
     private Path received;
     private long fileSize;
@@ -37,11 +41,13 @@ public final class PacketLab extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) {
                 if (session != null) new Thread(session::close, "packetlab-cleanup").start();
+                batch.cancelBatch();
                 dispose();
             }
         });
-        JPanel page = new JPanel(new BorderLayout(22, 20));
-        page.setBorder(new EmptyBorder(24, 26, 18, 26)); setContentPane(page);
+        JPanel page = new JPanel(new BorderLayout(0,16));
+        JPanel singlePage=new JPanel(new BorderLayout(22,14));
+        page.setBorder(new EmptyBorder(18,24,14,24)); setContentPane(page);
         JPanel heading = new JPanel(new BorderLayout());
         JPanel brand = new JPanel(new GridLayout(0,1,0,4));
         brand.add(LabTheme.label("PacketLab", 29, LabTheme.TEXT, true));
@@ -86,7 +92,7 @@ public final class PacketLab extends JFrame {
         start.putClientProperty("primary", true); actions.add(start); actions.add(cancel); actions.add(open);
         actions.setMaximumSize(new Dimension(300,130)); sidebar.add(actions); sidebar.add(Box.createVerticalGlue());
         sidebar.add(LabTheme.label("1,024-byte payloads  /  SHA-256 verified",11,LabTheme.MUTED,false));
-        page.add(sidebar,BorderLayout.WEST);
+        singlePage.add(sidebar,BorderLayout.WEST);
 
         JPanel workspace = new JPanel(new BorderLayout(0,14));
         JPanel summary = new JPanel(new BorderLayout());
@@ -104,9 +110,18 @@ public final class PacketLab extends JFrame {
         JTabbedPane views = new JTabbedPane();
         views.addTab("Packet flow", trace);
         views.addTab("Run summary",runSummary); views.addTab("Technical log",new JScrollPane(log));
-        workspace.add(views,BorderLayout.CENTER); page.add(workspace,BorderLayout.CENTER);
+        workspace.add(views,BorderLayout.CENTER); singlePage.add(workspace,BorderLayout.CENTER);
         status.setForeground(LabTheme.MUTED); status.setFont(new Font("Segoe UI",Font.PLAIN,12));
-        page.add(status,BorderLayout.SOUTH);
+        singlePage.add(status,BorderLayout.SOUTH);
+        JPanel batchPage=new JPanel(new BorderLayout(0,12));
+        JPanel batchFile=new JPanel(new BorderLayout(0,7));
+        batchFile.add(LabTheme.label("BATCH INPUT FILE",11,LabTheme.MUTED,true),BorderLayout.NORTH);
+        JPanel batchFileRow=new JPanel(new BorderLayout(10,0));batchSource.setEditable(false);
+        batchSource.setToolTipText("A separate file selection for repeated batch trials");batchFileRow.add(batchSource,BorderLayout.CENTER);
+        JPanel batchFileActions=new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));batchFileActions.add(batchBrowse);batchFileActions.add(batchDemo);
+        batchFileRow.add(batchFileActions,BorderLayout.EAST);batchFile.add(batchFileRow,BorderLayout.CENTER);
+        batchPage.add(batchFile,BorderLayout.NORTH);batchPage.add(batch,BorderLayout.CENTER);
+        page.add(new ExperimentModes(singlePage,batchPage),BorderLayout.CENTER);
         cancel.setEnabled(false); open.setEnabled(false);
         LabTheme.style(page);
         scenario.addActionListener(e -> {
@@ -122,6 +137,8 @@ public final class PacketLab extends JFrame {
             status.setText(selected.description()); previousScenario=selected;
         });
         showScenario(Experiment.RANDOM);
+        batchBrowse.addActionListener(e->chooseFor(batchSource));
+        batchDemo.addActionListener(e->demoFor(batchSource));
         browse.addActionListener(e -> choose());
         demo.addActionListener(e -> demo());
         start.addActionListener(e -> start());
@@ -135,7 +152,7 @@ public final class PacketLab extends JFrame {
             catch (Exception ex) { error(ex); }
         });
         WindowChrome.install(this,page);
-        setMinimumSize(new Dimension(1160, 820)); setSize(1050, 880); setLocationRelativeTo(null);
+        setMinimumSize(new Dimension(1160, 820)); setSize(1260, 920); setLocationRelativeTo(null);
     }
 
     private void showScenario(Experiment selected) {
@@ -156,17 +173,19 @@ public final class PacketLab extends JFrame {
         forcedDrop.setToolTipText(selected==Experiment.DROP_DATA ? "For an empty file, the first EOF packet is dropped instead." : selected.description());
         conditionModes.revalidate(); conditionModes.repaint();
     }
-    private void choose() {
-        Path initial=source.getText().isBlank()?null:Path.of(source.getText()).toAbsolutePath().getParent();
+    private void choose(){chooseFor(source);}
+    private void chooseFor(JTextField target) {
+        Path initial=target.getText().isBlank()?null:Path.of(target.getText()).toAbsolutePath().getParent();
         Path selected=FilePicker.choose(this,initial);
-        if(selected!=null){source.setText(selected.toString());source.setToolTipText(selected.toString());}
+        if(selected!=null){target.setText(selected.toString());target.setToolTipText(selected.toString());}
     }
-    private void demo() {
+    private void demo(){demoFor(source);}
+    private void demoFor(JTextField target) {
         try {
             Path directory = Path.of("runs").toAbsolutePath(); Files.createDirectories(directory);
             Path file = Files.createTempFile(directory, "demo-", ".txt");
             Files.writeString(file, "PacketLab: reliable communication over an unreliable channel.\n".repeat(100));
-            source.setText(file.toString());
+            target.setText(file.toString());target.setToolTipText(file.toString());
         } catch (Exception ex) { error(ex); }
     }
     private void start() {
@@ -231,6 +250,8 @@ public final class PacketLab extends JFrame {
         } catch (Exception ex) { error(ex); }
     }
     private void setRunning(boolean running) {
+        batch.setExternalBusy(running);
+        batchBrowse.setEnabled(!running);batchDemo.setEnabled(!running);
         start.setEnabled(!running); cancel.setEnabled(running); browse.setEnabled(!running);
         demo.setEnabled(!running); scenario.setEnabled(!running);
         boolean custom=((Experiment)scenario.getSelectedItem()).custom();
