@@ -10,6 +10,12 @@ Requires JDK 21 or newer. No third-party Java dependencies.
 
 On Windows, double-click **PacketLab.cmd** in this folder. It compiles the project and opens the app.
 You can also run `./run.ps1` in PowerShell. Select **Use demo file**, then **Start transfer**.
+On Windows, file selection uses the standard Explorer-style Common Item Dialog.
+A small native helper is built into `build/native/file-picker.exe` by `build-native.cmd`
+when MSYS2 UCRT64 g++ is available at `C:/msys64/ucrt64/bin/g++.exe`.
+The helper is statically linked; users running the compiled helper do not need MSYS2.
+Without it, Java's platform file dialog is used. Both launch scripts build the helper
+when needed. The C++ source is in `native/windows/file-picker.cpp`.
 Use **Cancel** to stop an experiment. Verified output is saved in a unique directory under `runs/`.
 
 On other platforms:

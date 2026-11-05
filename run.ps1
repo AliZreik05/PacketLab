@@ -15,6 +15,10 @@ if (-not $jdkRoot) { throw 'Install JDK 21 or newer and set JAVA_HOME.' }
 $sources = Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.java' | Select-Object -ExpandProperty FullName
 & (Join-Path $jdkRoot 'bin/javac.exe') -encoding UTF-8 -d build $sources
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
+if ($env:OS -eq 'Windows_NT') {
+    & (Join-Path $PSScriptRoot 'build-native.cmd')
+    if ($LASTEXITCODE -ne 0) { throw 'Native dialog compilation failed' }
+}
 if ($Test) {
     New-Item -ItemType Directory -Path runs -Force | Out-Null
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build LabSmokeTest
@@ -24,6 +28,8 @@ if ($Test) {
     & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build TracePanelTest
     if ($LASTEXITCODE -ne 0) { throw 'Playback checks failed' }
     & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build RunSummaryTest
+    if ($LASTEXITCODE -ne 0) { throw 'Summary checks failed' }
+    & (Join-Path $jdkRoot 'bin/java.exe') '-Djava.awt.headless=true' -cp build FilePickerTest
 } else {
     & (Join-Path $jdkRoot 'bin/java.exe') -cp build PacketLab
 }

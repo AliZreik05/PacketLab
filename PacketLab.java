@@ -157,9 +157,9 @@ public final class PacketLab extends JFrame {
         conditionModes.revalidate(); conditionModes.repaint();
     }
     private void choose() {
-        JFileChooser picker = new JFileChooser();
-        if (picker.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
-            source.setText(picker.getSelectedFile().getAbsolutePath());
+        Path initial=source.getText().isBlank()?null:Path.of(source.getText()).toAbsolutePath().getParent();
+        Path selected=FilePicker.choose(this,initial);
+        if(selected!=null){source.setText(selected.toString());source.setToolTipText(selected.toString());}
     }
     private void demo() {
         try {

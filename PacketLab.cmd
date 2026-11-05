@@ -17,6 +17,12 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+call "%~dp0build-native.cmd"
+if errorlevel 1 (
+    echo Native file dialog could not compile.
+    pause
+    exit /b 1
+)
 if /i "%~1"=="--check" exit /b 0
 start "" "%PACKETLAB_JDK%\bin\javaw.exe" -cp "%~dp0build" PacketLab
 exit /b 0
